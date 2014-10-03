@@ -11,7 +11,10 @@ Prerequisites
 
 There are a few prerequisites to building this code.  You need:
 
-* OCaml-3.11.0 or later.  Get it from <http://ocaml.org>
+* OCaml-4.02.0 or later.  Get it from <http://ocaml.org>
+* The Core alternative standard library for OCaml.  You can get it
+  here http://janestreet.github.io/, though your best bet is
+  installing it via OPAM
 * Berkeley DB version 4.6.* or later.  You can find the
   appropriate versions at
   <http://www.oracle.com/technetwork/database/berkeleydb/downloads/index.html>
