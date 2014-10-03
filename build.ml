@@ -23,12 +23,10 @@
 (***********************************************************************)
 
 module F(M:sig end) = struct
-  open StdLabels
-  open MoreLabels
-  open Printf
+  open Core.Std
   open Arg
   open Common
-  module Set = PSet.Set
+
   open Packet
   let settings = {
     Keydb.withtxn = false;
@@ -95,19 +93,19 @@ module F(M:sig end) = struct
 
   (***************************************************************)
 
-  let () = Sys.set_signal Sys.sigusr1 Sys.Signal_ignore
-  let () = Sys.set_signal Sys.sigusr2 Sys.Signal_ignore
+  let () = Signal.Expert.set Signal.usr1 `Ignore
+  let () = Signal.Expert.set Signal.usr2 `Ignore
 
   (***************************************************************)
   let run () =
     set_logfile "build";
         perror "Running SKS %s%s" Common.version Common.version_suffix;
 
-    if Sys.file_exists (Lazy.force Settings.dbdir) then (
+    if Sys.file_exists_exn (Lazy.force Settings.dbdir) then (
       printf "KeyDB directory already exists.  Exiting.\n";
       exit (-1)
     );
-    Unix.mkdir (Lazy.force Settings.dbdir) 0o700;
+    Unix.mkdir (Lazy.force Settings.dbdir) ~perm:0o700;
     Utils.initdbconf !Settings.basedir (Lazy.force Settings.dbdir);
 
     Keydb.open_dbs settings;

@@ -32,14 +32,9 @@
 
 module F(M:sig end) =
 struct
-  open StdLabels
-  open MoreLabels
-  open Printf
+  open Core.Std
   open Arg
   open Common
-  module Set = PSet.Set
-  module Map = PMap.Map
-  module Unix = UnixLabels
   open Packet
   open Bdb
 
@@ -165,7 +160,7 @@ struct
     Array.iteri filearray
       ~f:(fun i inchan ->
             perror "Starting keydump %d" i;
-            seek_in inchan 0;
+            In_channel.seek inchan 0L;
             let cin = new Channel.sys_in_channel inchan in
             let get = Key.get_of_channel cin in
             try
@@ -253,7 +248,7 @@ struct
     let hashes =
       if has_dups hashes then (
         perror "Duplicates found in hash list";
-        MList.dedup hashes
+        List.dedup hashes
       ) else hashes
     in
 
@@ -334,7 +329,7 @@ struct
   let run applied_filters =
 
     (* only do canonicalize if it's necessary *)
-    if not (List.mem "yminsky.dedup" applied_filters) then (
+    if not (List.mem applied_filters "yminsky.dedup") then (
       perror "Deduping keys in database";
       canonicalize ();
       Keydb.set_meta ~key:"filters" ~data:"yminsky.dedup";
@@ -343,8 +338,8 @@ struct
 
 
     (* note: if dedup was done, merge should be done again *)
-    if not (List.mem "yminsky.dedup" applied_filters)
-      || not (List.mem "yminsky.merge" applied_filters)
+    if not (List.mem applied_filters "yminsky.dedup")
+      || not (List.mem applied_filters "yminsky.merge")
     then (
       perror "Merging keys in database";
       merge ();

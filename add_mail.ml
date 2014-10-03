@@ -21,12 +21,8 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
+open Core.Std
 open Printf
-module Unix = UnixLabels
-module Map = PMap.Map
-module Set = PSet.Set
 
 (** Argument parsing *)
 
@@ -49,7 +45,7 @@ let dirname =
           usage_string;
     exit (-1)
   ) else
-    Filename.concat (List.hd !anonymous) "messages"
+    Filename.concat (List.hd_exn !anonymous) "messages"
 
 (** dumps contents of one file into another *)
 let pipe_file =
@@ -65,13 +61,13 @@ let pipe_file =
   pipe_file
 
 let run () =
-  if not (Sys.file_exists dirname)
-  then Unix.mkdir dirname 0o700;
+  if not (Sys.file_exists_exn dirname)
+  then Unix.mkdir dirname ~perm:0o700;
   let fname = sprintf "msg-%08d" (Random.int 100000000) in
   let fname = Filename.concat dirname fname in
   let f = open_out fname in
   pipe_file stdin f;
-  close_out f;
+  Out_channel.close f;
   Sys.rename fname (fname ^ ".ready")
 
 let () =

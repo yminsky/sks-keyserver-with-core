@@ -20,11 +20,9 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
+open Core.Std
 open Bdb
 open Common
-module Unix = UnixLabels
 
 type ptree_settings = { mbar: int;
                         bitquantum: int;
@@ -124,9 +122,9 @@ let open_ptree_db settings =
     | `ondisk | `transactional as treetype ->
         plerror 3 "Opening PTree database";
 
-        if not (Sys.file_exists settings.dbdir )
+        if not (Sys.file_exists_exn settings.dbdir )
         then (
-          Unix.mkdir settings.dbdir 0o700;
+          Unix.mkdir settings.dbdir ~perm:0o700;
           Utils.initdbconf !Settings.basedir settings.dbdir;
           );
 

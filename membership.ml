@@ -23,11 +23,7 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
-module Unix=UnixLabels
-open Printf
-open Scanf
+open Core.Std
 open Common
 
 exception Bug of string
@@ -50,7 +46,7 @@ let local_recon_addr = Utils.unit_memoize local_recon_addr
 let convert_address l =
   try
     if String.length l = 0 then raise Empty_line else
-    sscanf l "%s %s"
+    Scanf.sscanf l "%s %s"
       (fun addr service ->
          if addr = "" || service = "" then failwith "Blank line";
          addr, service)
@@ -74,7 +70,7 @@ let load_membership_file file =
 
 let get_mtime fname =
   try
-    if Sys.file_exists fname
+    if Sys.file_exists_exn fname
     then Some (Unix.stat fname).Unix.st_mtime
     else None
   with
@@ -84,12 +80,12 @@ let load_membership fname =
   let file = open_in fname in
   protect ~f:(fun () ->
     load_membership_file file)
-    ~finally:(fun () -> close_in file)
+    ~finally:(fun () -> In_channel.close file)
 
 let ai_to_string = function
   | { Unix.ai_addr = Unix.ADDR_UNIX s } -> sprintf "<ADDR_UNIX %s>" s
   | { Unix.ai_addr = Unix.ADDR_INET (addr,p) } -> sprintf "<ADDR_INET [%s]:%d>"
-        (Unix.string_of_inet_addr addr) p
+        (Unix.Inet_addr.to_string addr) p
 
 let ai_list_to_string ai_list =
   "[" ^ (String.concat ~sep:", " (List.map ~f:ai_to_string ai_list)) ^ "]"
@@ -117,32 +113,31 @@ let reload_if_changed () =
   let fname = Lazy.force Settings.membership_file in
   let (mshp,old_mtime) = !membership in
   match get_mtime fname with
-    | None ->
-        plerror 2 "%s" ("Unable to get mtime for membership file. " ^
-                        "Can't decide whether to reload")
-    | Some mtime ->
-        if old_mtime <> mtime then
-          ( let memberlines = load_membership fname in
-          let old = Array.to_list mshp in
-          let f line =
-            try
-              List.find ~f:(fun (_, old_line) -> line = old_line) old
-            with
-              Not_found -> ([], line)
-          in
-          let merged = Array.of_list (List.map ~f memberlines) in
-          membership := (merged, mtime);
-          plerror 5 "%s" (membership_string ());
-          (* Try to lookup unknown names *)
-          Array.iteri
-              ~f:(fun i mb -> if fst mb = [] then refresh_member merged i)
-              merged
-          )
+  | None ->
+    plerror 2 "%s" ("Unable to get mtime for membership file. " ^
+                    "Can't decide whether to reload")
+  | Some mtime ->
+    if old_mtime <> mtime then
+      ( let memberlines = load_membership fname in
+        let old = Array.to_list mshp in
+        let f line =
+          match List.find ~f:(fun (_, old_line) -> line = old_line) old with
+          | Some x -> x
+          | None -> ([],line)
+        in
+        let merged = Array.of_list (List.map ~f memberlines) in
+        membership := (merged, mtime);
+        plerror 5 "%s" (membership_string ());
+        (* Try to lookup unknown names *)
+        Array.iteri
+          ~f:(fun i mb -> if fst mb = [] then refresh_member merged i)
+          merged
+      )
 
 let get_names () =
   let file = Lazy.force Settings.membership_file in
   let mshp =
-    if not (Sys.file_exists file) then [||]
+    if not (Sys.file_exists_exn file) then [||]
     else (
       reload_if_changed ();
       let (m,_) = !membership in
@@ -162,7 +157,7 @@ let same_inet_addr addr1 addr2 =
     | _ -> false
 
 let rec choose () =
-  if Sys.file_exists (Lazy.force Settings.membership_file) then begin
+  if Sys.file_exists_exn (Lazy.force Settings.membership_file) then begin
     reload_if_changed ();
     let (mshp, _) = !membership in
     let choice = Random.int (Array.length mshp) in
@@ -170,7 +165,7 @@ let rec choose () =
     match fst mshp.(choice) with
       [] -> choose ()
     | addrlist ->
-        let saddr = (List.hd addrlist).Unix.ai_addr in
+        let saddr = (List.hd_exn addrlist).Unix.ai_addr in
         let same_addr thisaddr = same_inet_addr saddr thisaddr.Unix.ai_addr in
         if List.exists ~f:same_addr (local_recon_addr ()) then
           choose () else
@@ -209,7 +204,7 @@ let load_mailsync_partners fname =
       | None ->
           plerror 2 "Failed to find mtime -- can't load mailsync file"
   in
-  protect ~f:run ~finally:(fun () -> close_in file)
+  protect ~f:run ~finally:(fun () -> In_channel.close file)
 
 let reload_mailsync_if_changed () =
   let fname = Lazy.force Settings.mailsync_file in
@@ -222,7 +217,7 @@ let reload_mailsync_if_changed () =
 
 let get_mailsync_partners () =
   let partners =
-    if Sys.file_exists (Lazy.force Settings.membership_file) then (
+    if Sys.file_exists_exn (Lazy.force Settings.membership_file) then (
       reload_mailsync_if_changed ();
       let (m,mtime) = !mailsync_partners in
       m

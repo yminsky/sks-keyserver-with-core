@@ -23,16 +23,11 @@
 
 module F(M:sig end) =
 struct
-  open StdLabels
-  open MoreLabels
-  open Printf
+  open Core.Std
   open Common
   open Packet
   open DbMessages
-  module Unix = UnixLabels
   module PTree = PrefixTree
-  module Map = PMap.Map
-  module ZSet = ZZp.Set
 
   open RecoverList
   open PTreeDB
@@ -68,7 +63,7 @@ struct
 
 
   let () =
-    if Sys.file_exists recon_command_name
+    if Sys.file_exists_exn recon_command_name
     then Unix.unlink recon_command_name
   let comsock = Eventloop.create_sock recon_command_addr
 
@@ -90,20 +85,19 @@ struct
     )
 
   let choose_partner () =
-    try
-      let addrlist = Membership.choose () in
-      (* Only return usable addresses *)
-      let is_compatible addr =
-        try
-          ignore (match_client_recon_addr addr.Unix.ai_addr);
-          true
-        with Not_found -> false
-      in
-      let addrlist = List.filter ~f:is_compatible addrlist in
-      List.nth addrlist (Random.int (List.length addrlist))
-    with
-        Not_found | Invalid_argument _ ->
-          failwith "No gossip partners available"
+    let addrlist = Membership.choose () in
+    (* Only return usable addresses *)
+    let is_compatible addr =
+      try
+        ignore (match_client_recon_addr addr.Unix.ai_addr);
+        true
+      with Not_found -> false
+    in
+    let addrlist = List.filter ~f:is_compatible addrlist in
+    match List.nth addrlist (Random.int (List.length addrlist)) with
+    | Some x -> x
+    | None -> failwith "No gossip partners available"
+
 
   let missing_keys_timeout = !Settings.missing_keys_timeout
 
@@ -115,45 +109,46 @@ struct
     try
 
       ( try
-          let (hashes,httpaddr) = Queue.pop recover_list in
-          plerror 3
-            "Requesting %d missing keys from %s, starting with %s"
-            (List.length hashes) (sockaddr_to_string httpaddr)
-            (match hashes with
+          match Queue.dequeue recover_list with
+          | None -> enable_gossip (); []
+          | Some (hashes,httpaddr) ->
+            plerror 3
+              "Requesting %d missing keys from %s, starting with %s"
+              (List.length hashes) (sockaddr_to_string httpaddr)
+              (match hashes with
                  [] -> "<nohash>"
                | hash::tl -> KeyHash.hexify hash
-            );
+              );
 
-          let keystrings = ReconComm.get_keystrings_via_http httpaddr hashes in
-          plerror 3 "%d keys received" (List.length keystrings);
-          let ack = ReconComm.send_dbmsg (KeyStrings keystrings) in
-          if ack <> Ack 0
-          then failwith ("Reconserver.get_missing_keys: " ^
-                         "Unexpected reply to KeyStrings message");
-          let now = Unix.gettimeofday () in
-          [
-            Eventloop.Event
-             (now,
-              Eventloop.make_tc
-                ~name:"get_missing_keys.catchup"
-                ~timeout:max_int
-                ~cb:Catchup.catchup);
+            let keystrings = ReconComm.get_keystrings_via_http httpaddr hashes in
+            plerror 3 "%d keys received" (List.length keystrings);
+            let ack = ReconComm.send_dbmsg (KeyStrings keystrings) in
+            if ack <> Ack 0
+            then failwith ("Reconserver.get_missing_keys: " ^
+                           "Unexpected reply to KeyStrings message");
+            let now = Unix.gettimeofday () in
+            [
+              Eventloop.Event
+                (now,
+                 Eventloop.make_tc
+                   ~name:"get_missing_keys.catchup"
+                   ~timeout:Int.max_value
+                   ~cb:Catchup.catchup);
 
-            Eventloop.Event
-              (Ehandlers.float_incr now,
-               Eventloop.make_tc ~name ~timeout
-                 ~cb:get_missing_keys; );
-          ]
+              Eventloop.Event
+                (Ehandlers.float_incr now,
+                 Eventloop.make_tc ~name ~timeout
+                   ~cb:get_missing_keys; );
+            ]
         with
-          | Queue.Empty -> enable_gossip (); []
-          | Eventloop.SigAlarm as e -> raise e
-          | e ->
-              Eventloop.reraise e;
-              eperror e "Error getting missing keys";
-              [Eventloop.Event (Unix.gettimeofday (),
-                                Eventloop.make_tc ~cb:get_missing_keys
-                                  ~timeout ~name)
-              ]
+        | Eventloop.SigAlarm as e -> raise e
+        | e ->
+          Eventloop.reraise e;
+          eperror e "Error getting missing keys";
+          [Eventloop.Event (Unix.gettimeofday (),
+                            Eventloop.make_tc ~cb:get_missing_keys
+                              ~timeout ~name)
+          ]
 
       )
     with
@@ -168,7 +163,8 @@ struct
   (** convert a sockaddr to a string suitable for including in a file name *)
   let sockaddr_to_name sockaddr = match sockaddr with
       Unix.ADDR_UNIX s -> sprintf "UNIX_%s" s
-    | Unix.ADDR_INET (addr,p) -> sprintf "%s_%d" (Unix.string_of_inet_addr addr) p
+    | Unix.ADDR_INET (addr,p) ->
+      sprintf "%s_%d" (Unix.Inet_addr.to_string addr) p
 
   (******************************************************************)
 
@@ -200,7 +196,7 @@ struct
             ~partner:addr cin cout
         in
         plerror 4 "Reconciliation complete";
-        let elements = ZSet.elements results in
+        let elements = Set.to_list results in
         let hashes = hashconvert elements in
         print_hashes (sockaddr_to_string http_addr) hashes;
         log_diffs (sprintf "diff-%s.txt" (sockaddr_to_name http_addr)) hashes;
@@ -236,7 +232,7 @@ struct
         let (results,http_addr) =
           ReconCS.connect (get_ptree ()) ~filters ~partner
         in
-        let results = ZSet.elements results in
+        let results = Set.to_list results in
         plerror 4 "Reconciliation complete";
         let hashes = hashconvert results in
         print_hashes (sockaddr_to_string http_addr) hashes;
@@ -331,8 +327,9 @@ struct
 
   (***************************************************************)
 
-  let () = Sys.set_signal Sys.sigusr1 Sys.Signal_ignore
-  let () = Sys.set_signal Sys.sigusr2 Sys.Signal_ignore
+  let () = 
+    Signal.Expert.set Signal.usr1 `Ignore;
+    Signal.Expert.set Signal.usr2 `Ignore
 
   (***********************************************************************)
 

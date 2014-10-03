@@ -20,20 +20,12 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
-open Printf
+open Core.Std
 open Common
 open Packet
-module Unix = UnixLabels
-
-
-let rec last list = match list with
-    [x] -> x | hd::tl -> last tl | _ -> raise Not_found
 
 type histogram_entry =
-    {
-      upper: float;
+    { upper: float;
       lower: float;
       mutable num_adds: int;
       mutable num_dels: int;
@@ -41,14 +33,8 @@ type histogram_entry =
 
 (************************************************************)
 
-external get_tzname : unit -> (string * string) = "caml_get_tzname"
-
 let time_to_tz_string time =
-  let tm = Unix.localtime time in
-  sprintf "%04d-%02d-%02d %02d:%02d:%02d %s"
-    (1900 + tm.Unix.tm_year) (1 + tm.Unix.tm_mon) tm.Unix.tm_mday
-    tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec
-    (fst (get_tzname ()))
+  Time.of_float time |> Time.to_string_abs
 
 let time_to_string time =
   let tm = Unix.localtime time in
@@ -94,22 +80,23 @@ let histogram_log ~now binsize log =
   let oldtime = fst log.(0) in
   let newtime = now in
 
-  let nbins = truncate (ceil ((newtime -. oldtime) /. binsize)) in
-  let bins = Array.init nbins
-                ~f:(fun i -> {
-                      upper = newtime -. binsize *. float i;
-                      lower = newtime -. binsize *. float (i + 1);
-                      num_adds = 0; num_dels = 0; } )
+  let nbins = Float.iround_up_exn ((newtime -. oldtime) /. binsize) in
+  let bins = Array.init nbins ~f:(fun i ->
+    { upper = newtime -. binsize *. float i;
+      lower = newtime -. binsize *. float (i + 1);
+      num_adds = 0; num_dels = 0; } )
   in
   Array.iter log
     ~f:(fun (time,op) ->
-          let bin_idx = truncate ((newtime -. time) /. binsize) in
+          let bin_idx = 
+            Float.iround_towards_zero_exn ((newtime -. time) /. binsize)
+          in
           let bin = bins.(bin_idx) in
           if time < bin.lower || time > bin.upper
           then failwith "bad bin placement";
           match op with
-              Add _ -> bin.num_adds <- bin.num_adds + 1
-            | Delete _ -> bin.num_dels <- bin.num_dels + 1
+          | Add _ -> bin.num_adds <- bin.num_adds + 1
+          | Delete _ -> bin.num_dels <- bin.num_dels + 1
        );
   bins
 
@@ -126,7 +113,7 @@ let histogram_to_table time_to_string histogram =
   in
   "<table summary=\"Statistics\" border=\"1\">\n" ^
   "<tr><td>Time</td><td>New Keys</td><td>Updated Keys</td></tr>\n" ^
-  String.concat "\n" table_entries ^
+  String.concat ~sep:"\n" table_entries ^
   "\n</table>\n"
 
 

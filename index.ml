@@ -20,15 +20,12 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
-open Printf
+open Core.Std
 open Common
 open Packet
 open Request
 open Pstyle
 
-module Map = PMap.Map
 
 (********************************************************************)
 
@@ -121,7 +118,7 @@ let sig_to_siginfo sign =
                   let name_data = cin#read_string name_len in
                   let value_data = cin#read_string value_len in
 
-                  if Char.code flags.[0] = 0x80 then
+                  if Char.to_int flags.[0] = 0x80 then
                     (* human-readable notation data *)
                     siginfo.notation_data <- Some (name_data,value_data)
 
@@ -170,15 +167,15 @@ let is_primary ~keyid (uid,siginfo_list) =
 
 (** returns time of most recent self-sig on uid *)
 let max_selfsig_time ~keyid (uid,siginfo_list) =
-  let selfsigs = List.filter ~f:(fun si -> is_selfsig ~keyid si)
-                   siginfo_list in
-  let times = filter_opts
-                (List.map selfsigs
-                   ~f:(function x -> match x.sig_creation_time with
-                           None -> None
-                         | Some time -> Some (Int64.to_float time)))
+  let selfsigs = 
+    List.filter siginfo_list ~f:(fun si -> is_selfsig ~keyid si)
   in
-  List.fold_left ~init:min_float ~f:max times
+  let times = List.filter_map selfsigs ~f:(function x ->
+    match x.sig_creation_time with
+    | None -> None
+    | Some time -> Some (Int64.to_float time))
+  in
+  List.fold ~init:Float.min_value ~f:Float.max times
 
 (********************************************************************)
 
@@ -231,7 +228,7 @@ let siginfo_to_lines ~get_uid ?key_creation_time request self_keyid today siginf
            siginfo.key_expiration_time)
     with
     | (None,_) | (_,None) -> blank_datestr
-    | (Some x,Some y) -> datestr_of_int64 (Int64.add x y)
+    | (Some x,Some y) -> datestr_of_int64 (Int64.(+) x y)
   in
 
   let sig_expiration_string =
@@ -239,7 +236,7 @@ let siginfo_to_lines ~get_uid ?key_creation_time request self_keyid today siginf
            siginfo.sig_expiration_time)
     with
     | (None,_) | (_,None) -> blank_datestr
-    | (Some x,Some y) -> datestr_of_int64 (Int64.add x y)
+    | (Some x,Some y) -> datestr_of_int64 (Int64.(+) x y)
   in
 
   let sig_expired =
@@ -247,7 +244,7 @@ let siginfo_to_lines ~get_uid ?key_creation_time request self_keyid today siginf
            siginfo.sig_expiration_time)
     with
     | (None,_) | (_,None) -> false
-    | (Some x,Some y) -> (Int64.to_float (Int64.add x y)) < today
+    | (Some x,Some y) -> (Int64.to_float (Int64.(+) x y)) < today
   in
 
   let sigtype_string =
@@ -390,7 +387,7 @@ let key_packet_to_line ~is_subkey pki keyid =
       match pki.pk_expiration with
         | None -> blank_datestr
         | Some days ->
-            let time = Int64.add (Int64.of_int (days * 24 * 60 * 60))
+            let time = Int64.(+) (Int64.of_int (days * 24 * 60 * 60))
                          pki.pk_ctime in
             datestr_of_int64 time
   in
@@ -603,7 +600,7 @@ let key_to_lines_normal request key hash =
     in
     let userids = match userids with [] -> []
       | hd::tl -> (sprintf "<a href=\"%s\">%s</a>" ilink hd)::tl in
-    let pki = ParsePGP.parse_pubkey_info (List.hd key) in
+    let pki = ParsePGP.parse_pubkey_info (List.hd_exn key) in
     let keystr = HtmlTemplates.keyinfo_pks pki (is_revoked key)
                     ~keyid:keyid_short ~link ~userids in
     let lines = [] in

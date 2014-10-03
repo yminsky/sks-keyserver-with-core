@@ -21,12 +21,9 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
-open Printf
+open Core.Std
 open Common
 open Packet
-module Set = PSet.Set
 
 let settings = {
   Keydb.withtxn = !Settings.transactions;
@@ -52,12 +49,12 @@ let dump_database timestamp fname =
   else
     let file = open_out fname in
     let run () =
-      let newkeys = List.fold_left log ~init:Set.empty
+      let newkeys = List.fold_left log ~init:Set.Poly.empty
                       ~f:(fun set (_,change) -> match change with
-                              Add hash -> Set.add hash set
-                            | Delete hash -> Set.remove hash set)
+                              Add hash -> Set.add set hash
+                            | Delete hash -> Set.remove set hash)
       in
-      printf "%d new keys in log.\n%!" (Set.cardinal newkeys);
+      printf "%d new keys in log.\n%!" (Set.length newkeys);
       Set.iter newkeys
         ~f:(fun hash ->
               try
@@ -67,10 +64,10 @@ let dump_database timestamp fname =
                   e ->
                     eprintf "Error fetching keystring from hash %s: %s\n%!"
                     (Utils.hexstring hash)
-                    (Printexc.to_string e)
+                    (Exn.to_string e)
            )
     in
-    protect ~f:run ~finally:(fun () -> close_out file)
+    protect ~f:run ~finally:(fun () -> Out_channel.close file)
 
 let run () =
   List.iter !Settings.anonlist
@@ -88,7 +85,7 @@ let run () =
         perror "Running SKS %s%s" Common.version Common.version_suffix;
         Keydb.open_dbs settings;
         protect ~f:(fun () ->
-                      let timestamp = float_of_string timestamp in
+                      let timestamp = Float.of_string timestamp in
                       dump_database timestamp name )
           ~finally:(fun () -> Keydb.close_dbs ())
 

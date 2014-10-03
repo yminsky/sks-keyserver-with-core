@@ -193,7 +193,7 @@ let rec parse_headers map cin =
     and data = String.sub line ~pos:(colonpos + 1)
                  ~len:(String.length line - colonpos - 1)
     in
-    parse_headers (map |< (String.lowercase key, strip data)) cin
+    parse_headers (Map.add map ~key:(String.lowercase key) ~data:(strip data)) cin
 
 let parse_request cin =
   let line = input_line cin in (* DoS attack: input_line is unsafe on sockets *)

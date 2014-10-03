@@ -1,3 +1,5 @@
+open Core.Std
+
 module F :
   functor (M : sig  end) ->
     sig
@@ -9,12 +11,12 @@ module F :
       val eventify_handler :
         ('a -> Channel.sys_in_channel -> Channel.sys_out_channel -> 'b) ->
         'a -> in_channel -> out_channel -> 'b
-      val choose_partner : unit -> PTreeDB.Unix.addr_info
+      val choose_partner : unit -> Unix.addr_info
       val missing_keys_timeout : int
       val get_missing_keys : unit -> Eventloop.timed_event list
-      val sockaddr_to_name : PTreeDB.Unix.sockaddr -> string
+      val sockaddr_to_name : Unix.sockaddr -> string
       val recon_handler :
-        UnixLabels.sockaddr ->
+        Unix.sockaddr ->
         in_channel -> out_channel -> Eventloop.timed_event list
       val initiate_recon : unit -> Eventloop.timed_event list
       val command_handler :
