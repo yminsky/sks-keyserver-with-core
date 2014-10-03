@@ -20,12 +20,7 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
-module Unix=UnixLabels
-
-module Set = PSet.Set
-open Printf
+open Core.Std
 (*module ZZp = RMisc.ZZp *)
 module PTree = PrefixTree
 
