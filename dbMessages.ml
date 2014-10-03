@@ -20,14 +20,11 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open MoreLabels
-open StdLabels
+open Core.Std
 open Packet
 open CMarshal
 open Common
-open Printf
 module Unix=UnixLabels
-module Set = PSet.Set
 
 
 (***********************************)
@@ -172,7 +169,7 @@ let sockaddr_to_string sockaddr = match sockaddr with
 
 let msg_to_string msg =
   match msg with
-      WordQuery words -> "WordQuery: " ^ (String.concat ", " words)
+      WordQuery words -> "WordQuery: " ^ (String.concat ~sep:", " words)
     | LogQuery (count,timestamp) -> sprintf "LogQuery: (%d,%f)" count timestamp
     | LogResp list ->
         let length = List.length list in
@@ -194,7 +191,7 @@ let msg_to_string msg =
             (sockaddr_to_string sockaddr)
             (String.concat ~sep:""
                (List.map ~f:(sprintf "\n\t%s")
-                  (List.map Utils.hexstring keys)))
+                  (List.map ~f:Utils.hexstring keys)))
     | Synchronize -> sprintf "Synchronize"
     | RandomDrop i ->
         sprintf "RandomDrop: %d" i

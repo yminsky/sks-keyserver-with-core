@@ -1,3 +1,5 @@
+open Core.Std
+
 type recon_rqst_poly = {
   rp_prefix : Bitstring.t;
   rp_size : int;
@@ -6,7 +8,7 @@ type recon_rqst_poly = {
 
 type recon_rqst_full = { rf_prefix : Bitstring.t; rf_elements : ZZp.Set.t; }
 
-type configdata = (string, string) PMap.Map.t
+type configdata = string String.Map.t
 
 type msg =
   | ReconRqst_Poly of recon_rqst_poly

@@ -1,7 +1,11 @@
+open Core.Std
+
 exception Bug of string
+exception Continue
+
 type 'a bottomQ_entry
 type reconbound
-exception Continue
+
 val send_request :
   < outchan : out_channel; write_int : int -> 'a; .. > ->
   'b PrefixTree.tree ->

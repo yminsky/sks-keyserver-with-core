@@ -30,7 +30,7 @@ exception LengthError of string
 
 let width = 8
 
-type t = { a: string;
+type t = { a: bytes;
            bitlength: int;
          }
 
@@ -40,7 +40,7 @@ let bytelength bits =
 let create bits =
   let bytes = bytelength bits
   in
-  { a = String.create bytes;
+  { a = Bytes.create bytes;
     bitlength = bits;
   }
 
@@ -58,7 +58,7 @@ let flip ba bit =
   let intval = int_of_char (String.get ba.a byte_pos) in
   let new_char = char_of_int ((1 lsl (width - bit_pos - 1)) lxor intval)
   in
-  String.set ba.a byte_pos new_char
+  Bytes.set ba.a byte_pos new_char
 
 let set ba bit =
   let byte_pos = bit / width
@@ -66,7 +66,7 @@ let set ba bit =
   let intval = int_of_char (String.get ba.a byte_pos) in
   let new_char = char_of_int ((1 lsl (width - bit_pos - 1)) lor intval)
   in
-  String.set ba.a byte_pos new_char
+  Bytes.set ba.a byte_pos new_char
 
 let unset ba bit =
   let byte_pos = bit / width
@@ -75,7 +75,7 @@ let unset ba bit =
   let new_char = char_of_int ((lnot (1 lsl (width - bit_pos - 1)))
                               land intval)
   in
-  String.set ba.a byte_pos new_char
+  Bytes.set ba.a byte_pos new_char
 
 let setval ba bit bool =
   if bool then set ba bit else unset ba bit
@@ -98,11 +98,11 @@ let to_bool_array ba =
   Array.init ~f:(fun i -> lget ba i) ba.bitlength
 
 let to_string ba =
-  let string = String.create ba.bitlength in
+  let bytes = Bytes.create ba.bitlength in
   for i = 0 to ba.bitlength -1 do
-    if get ba i = 0 then string.[i] <- '0' else string.[i] <- '1'
+    if get ba i = 0 then Bytes.set bytes i '0' else Bytes.set bytes i '1'
   done;
-  string
+  bytes
 
 let to_bytes ba =
   let lastbit = (bytelength ba.bitlength)*width - 1 in
@@ -112,33 +112,41 @@ let to_bytes ba =
   String.sub ~pos:0 ~len:(bytelength ba.bitlength) ba.a
 
 let of_bytes string bitlength =
-  { bitlength = bitlength;
-    a = String.copy string;
+  { bitlength;
+    a = Bytes.copy string;
   }
 
 let of_byte b =
   { bitlength = width;
-    a = String.make 1 (char_of_int (b land 0xFF));
+    a = Bytes.make 1 (char_of_int (b land 0xFF));
   }
 
 let of_bytes_all string =
   { bitlength = (String.length string) * width;
-    a = String.copy string;
+    a = Bytes.copy string;
   }
+
+let bstring_of_int i =
+  let b = Bytes.create 4 in
+  Bytes.set b 3 (char_of_int (i land 0xFF));
+  Bytes.set b 2 (char_of_int ((i lsr 8) land 0xFF));
+  Bytes.set b 1 (char_of_int ((i lsr 16) land 0xFF));
+  Bytes.set b 0 (char_of_int ((i lsr 24) land 0xFF));
+  b
 
 let of_int i =
   { bitlength = width * 4;
-    a = Utils.bstring_of_int i;
+    a = bstring_of_int i;
   }
 
 let of_bytes_nocopy string bitlength =
-  { bitlength = bitlength;
+  { bitlength;
     a = string;
   }
 
-let of_bytes_all_nocopy string =
-  { bitlength = (String.length string) * width;
-    a = string;
+let of_bytes_all_nocopy bytes =
+  { bitlength = Bytes.length bytes * width;
+    a = bytes;
   }
 
 let to_bytes_nocopy ba =
@@ -159,11 +167,11 @@ let copy ba = { ba with a = String.copy ba.a }
   if the bitstring length is extended.
  *)
 let copy_len ba bitlength =
-  let bytes = bytelength bitlength in
-  let str = String.create bytes in
-  String.blit ~src:ba.a ~src_pos:0
-    ~dst:str ~dst_pos:0 ~len:(String.length ba.a);
-  { a = str; bitlength = bitlength }
+  let num_bytes = bytelength bitlength in
+  let dst = Bytes.create num_bytes in
+  Bytes.blit ~src:ba.a ~src_pos:0
+    ~dst ~dst_pos:0 ~len:(Bytes.length ba.a);
+  { a = dst; bitlength }
 
 (********************************************************************)
 (***  Shifting  *****************************************************)
@@ -191,17 +199,17 @@ let shift_left_small ba bits =
   if bits > 0 then
     let bytes = bytelength ba.bitlength in
     for i = 0 to bytes-2 do
-      ba.a.[i] <- shift_pair_left ba.a.[i] ba.a.[i+1] bits
+      Bytes.set ba.a i (shift_pair_left ba.a.[i] ba.a.[i+1] bits)
     done;
-    ba.a.[bytes-1] <- shift_pair_left ba.a.[bytes-1] '\000' bits
+    Bytes. set ba.a (bytes-1) (shift_pair_left ba.a.[bytes-1] '\000' bits)
 
 let shift_right_small ba bits =
   if bits > 0 then
     let bytes = bytelength ba.bitlength in
     for i = bytes-1 downto 1 do
-      ba.a.[i] <- shift_pair_right ba.a.[i-1] ba.a.[i] bits
+      Bytes.set ba.a i (shift_pair_right ba.a.[i-1] ba.a.[i] bits)
     done;
-    ba.a.[0] <-  shift_pair_right '\000' ba.a.[0] bits
+    Bytes.set ba.a 0 (shift_pair_right '\000' ba.a.[0] bits)
 
 (**********************************)
 
@@ -216,10 +224,10 @@ let rec shift_left ba bits =
   then
     begin
       for i = 0 to bytelength - 1 - bytes do
-        ba.a.[i] <- ba.a.[i+bytes];
+        Bytes.set ba.a i (ba.a.[i+bytes]);
       done;
       for i = bytelength - bytes to bytelength - 1 do
-        ba.a.[i] <- '\000'
+        Bytes.set ba.a i '\000'
       done
     end;
   shift_left_small ba bits
@@ -235,10 +243,10 @@ and shift_right ba bits =
     then
       begin
         for i = bytelength - 1 downto bytes do
-          ba.a.[i] <- ba.a.[i-bytes];
+          Bytes.set ba.a i (ba.a.[i-bytes]);
         done;
         for i = bytes - 1 downto 0 do
-          ba.a.[i] <- '\000'
+          Bytes.set ba.a i '\000'
         done
       end;
     shift_right_small ba bits
@@ -275,34 +283,14 @@ let blit ~src ~dst ~len =
     let newdst = (rmasks.(bitlen) land srcval) lor
                  ((lnot rmasks.(bitlen)) land dstval)
     in
-    dst.a.[bytelen] <- char_of_int newdst
+    Bytes.set dst.a bytelen (char_of_int newdst)
 
 
 (* let full_blit ~src ~src_pos ~dst ~dst_pos ~len =  *)
 
 
 let zero_out bs =
-  String.fill bs.a ~pos:0 ~len:(String.length bs.a) '\000'
+  Bytes.fill bs.a ~pos:0 ~len:(String.length bs.a) '\000'
 
-(*
-let extract bs ~pos ~len =
-  let first_bit = pos % 8
-  let first_byte = pos / 8 in
-  let last_byte = (pos + len) / 8 +
-                  (if (pos + len) % 8 > 0 then 1 else 0) in
-  let byte_len =  last_byte - first_byte + 1 in
-  let newbs = Bitstring.create len in
-  String.blit
-    ~src:bs.a ~src_pos:src_first_byte
-    ~dst:newbs.a ~dst_pos:0 ~len:byte_len;
-  shift_left newbs first_bit;
-*)
-
-
-(*
-let concat bs1 bs2 =
-  let newbs = create (bs1.bits + bs2.bits) in
-  blit ~src:bs1 ~dst:newbs ~len:(bs1.bits);
-*)
 
 

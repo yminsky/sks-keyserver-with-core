@@ -20,14 +20,10 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
-open Printf
+open Core.Std
 open Common
 open Packet
 
-module Set = PSet.Set
-module Map = PMap.Map
 
 exception Unparseable_packet_sequence
 
@@ -172,22 +168,19 @@ and subkeylist = parser
 (*** Key Merging Code  *********************************************)
 (*******************************************************************)
 
-let set_of_list list = List.fold_left ~init:Set.empty list
-                         ~f:(fun set x -> Set.add x set)
-
 let merge_sigpairs pairs =
   let map =
     List.fold_left pairs
       ~f:(fun map (pack,sigs) ->
-            try
-              let old_sigs = Map.find pack map in
-              (* If front packet is already there, add in new sigs,
-                 discarding duplicates *)
-              Map.add ~key:pack ~data:(Utils.dedup (old_sigs @ sigs)) map
-            with
-                (* otherwise, add in data by itself *)
-                Not_found -> Map.add ~key:pack ~data:sigs map)
-      ~init:Map.empty
+        try
+          let old_sigs = Map.find_exn map pack in
+          (* If front packet is already there, add in new sigs,
+             discarding duplicates *)
+          Map.add ~key:pack ~data:(List.dedup (old_sigs @ sigs)) map
+        with
+        (* otherwise, add in data by itself *)
+        | Not_found -> Map.add ~key:pack ~data:sigs map)
+      ~init:Map.Poly.empty
   in
   Map.fold ~f:(fun ~key:pack ~data:sigs list -> (pack,sigs)::list) map ~init:[]
 
@@ -201,7 +194,7 @@ let merge_pkeys key1 key2 =
   then None (* merge can only work if keys are the same *)
   else
     Some { key = key1.key;
-           selfsigs = Utils.dedup (key1.selfsigs @ key2.selfsigs);
+           selfsigs = List.dedup (key1.selfsigs @ key2.selfsigs);
            (* this might be wrong.  Must the revocations
               be separated out to go before the other self
               signatures? *)
@@ -235,23 +228,23 @@ let merge key1 key2 =
 
 let dedup_sigpairs pairs =
   let map =
-    List.fold_left pairs ~init:Map.empty
+    List.fold_left pairs ~init:Map.Poly.empty
       ~f:(fun map (pack,sigs) ->
-            try
-              let old_sigs = Map.find pack map in
-              Map.add ~key:pack ~data:(Utils.dedup (sigs @ old_sigs)) map
-            with
-                Not_found -> Map.add ~key:pack ~data:sigs map
-         )
+        try
+          let old_sigs = Map.find_exn map pack in
+          Map.add ~key:pack ~data:(List.dedup (sigs @ old_sigs)) map
+        with
+          Not_found -> Map.add ~key:pack ~data:sigs map
+      )
   in
   Map.to_alist map
 
 
 let dedup_pkey pkey =
   { pkey with
-      selfsigs = Utils.dedup pkey.selfsigs;
-      uids = dedup_sigpairs pkey.uids;
-      subkeys = dedup_sigpairs pkey.subkeys;
+    selfsigs = List.dedup pkey.selfsigs
+  ; uids = dedup_sigpairs pkey.uids
+  ; subkeys = dedup_sigpairs pkey.subkeys
   }
 
 let dedup_key key = flatten (dedup_pkey (key_to_pkey key))

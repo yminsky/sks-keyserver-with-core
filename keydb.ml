@@ -20,11 +20,8 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
-open Printf
+open Core.Std
 open Common
-module Set = PSet.Set
 
 (** Invariants to check:
 
@@ -235,8 +232,9 @@ struct
     | Offset _ | LargeOffset _ -> true
 
   let keystring_of_offset offset_union =
-    let offset = match offset_union with
-        `large_offset offset | `offset offset -> offset
+    let offset =
+      match offset_union with
+      | `large_offset offset | `offset offset -> offset
     in
     let dbs = get_dbs () in
     if Array.length dbs.dump.filearray  = 0
@@ -247,12 +245,12 @@ struct
                    "File number exceeds number of dump files");
     let file = dbs.dump.filearray.(offset.fnum) in
     (match offset_union with
-       | `large_offset offset -> LargeFile.seek_in file offset.pos;
-       | `offset offset -> seek_in file offset.pos);
+     | `large_offset offset -> LargeFile.seek_in file offset.pos;
+     | `offset offset -> In_channel.seek file (Int64.of_int offset.pos));
     let key = Key.get_of_channel (new Channel.sys_in_channel file) () in
     Key.to_string key
 
-  let keystring_of_skey skey = match skey with
+  let keystring_of_skey = function
     | KeyString s -> s
     | Key key -> Key.to_string key
     | Offset offset -> keystring_of_offset (`offset offset)
@@ -274,7 +272,7 @@ struct
           then failwith ("Key could not be fetched from offset: " ^
                          "File number exceeds number of dump files");
           let file = dbs.dump.filearray.(offset.fnum) in
-          seek_in file offset.pos;
+          In_channel.seek file (Int64.of_int offset.pos);
           Key.get_of_channel (new Channel.sys_in_channel file) ()
       | LargeOffset offset ->
           let dbs = get_dbs () in
@@ -375,8 +373,8 @@ struct
             file offset is stored instead of key contents *)
           let dump =
             let dir = settings.dumpdir in
-            if (Sys.file_exists dir &&
-                (Unix.stat dir).Unix.st_kind = Unix.S_DIR)
+            if (Sys.file_exists_exn dir
+                && (Unix.stat dir).Unix.st_kind = Unix.S_DIR)
             then
               let pgpfiles = read_dir_suff dir ".pgp" in
               let pgpfiles = List.sort ~cmp:compare pgpfiles in
@@ -391,7 +389,7 @@ struct
               }
             else
               { directory = "";
-                filearray = Array.make 0 stdin;
+                filearray = Array.create 0 stdin;
               }
           in
 
@@ -412,7 +410,7 @@ struct
 
   let close_dump dbs =
     let files = dbs.dump.filearray in
-    Array.iter files ~f:(fun file -> close_in file)
+    Array.iter files ~f:(fun file -> In_channel.close file)
 
   (***********************************************************************)
 
@@ -514,11 +512,11 @@ struct
     in
 
     let total_length =
-      Array.fold_left ~init:0
+      Array.fold ~init:0
         ~f:(fun sum list -> sum + List.length list) a
     in
     try
-      let newarray = Array.make total_length (choose 0) in
+      let newarray = Array.create total_length (choose 0) in
 
       (* fill newarray  *)
       let ctr = ref 0 in
@@ -558,7 +556,7 @@ struct
                       wordlist in
       let run () =
         let lengths = List.map ~f:Cursor.count cursors in
-        if MList.min lengths > max_internal_matches
+        if List.reduce_exn ~f:Int.min lengths > max_internal_matches
         then raise (Invalid_argument "Insufficiently specific words");
         let keystrings =
           let cj = Cursor.join dbs.key cursors [] in
@@ -633,7 +631,7 @@ struct
                      with Not_found -> None)
         hashes
     in
-    MList.strip_opt keystr_opts
+    List.filter_opt keystr_opts
 
 
   (***********************************************************************)
@@ -713,16 +711,14 @@ struct
 
   let get_skeystrings_by_keyid db keyid =
     let hashes = get_hashes_by_keyid db keyid in
-    MList.strip_opt
-      (List.map ~f:(fun hash ->
-                     try Some (get_skeystring_by_hash hash)
-                     with Not_found ->
-                       plerror 3 "%s %s"
-                       "Failed lookup of skeystring from hash"
-                       (KeyHash.hexify hash);
-                       None
-                   )
-         hashes)
+    List.filter_map hashes ~f:(fun hash ->
+      try Some (get_skeystring_by_hash hash)
+      with Not_found ->
+        plerror 3 "%s %s"
+          "Failed lookup of skeystring from hash"
+          (KeyHash.hexify hash);
+        None
+    )
 
   (** returns list of keys with a primary key with the given short keyid *)
   let get_by_short_keyid keyid =
@@ -894,9 +890,9 @@ struct
                       }
 
   let shorten_offset offset =
-    if offset.pos <= Int64.of_int max_int then
+    if offset.pos <= Int64.of_int Int.max_value then
       Offset { fnum = offset.fnum;
-               pos = Int64.to_int offset.pos;
+               pos = Int64.to_int_exn offset.pos;
              }
     else
       LargeOffset offset

@@ -20,14 +20,9 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
-open Printf
+open Core.Std
 open Common
 module Unix=UnixLabels
-(*module ZZp = RMisc.ZZp *)
-module Set = PSet.Set
-module ZSet = ZZp.Set
 
 exception Bug of string
 
@@ -50,16 +45,16 @@ exception Bug of string
 type key = Bitstring.t
 
 module WHash =
-  Weak.Make(struct
-              type t = key
-              let equal = (=)
-              and hash = Hashtbl.hash
-            end)
+  Caml.Weak.Make(struct
+    type t = key
+    let equal = (=)
+    and hash = Hashtbl.hash
+  end)
 
 type writestatus = Clean | Dirty
 type 'a disk = OnDisk of key | InMem of 'a
 
-type children = | Leaf of string Set.t
+type children = | Leaf of String.Set.t
                 | Children of node disk array
 
 and node = { svalues: ZZp.mut_array;
@@ -121,7 +116,7 @@ let op_map ~f list = List.map ~f:(op_apply ~f) list
 let rec child_keys_rec bs ~bit ~len =
   if bit >= len
   then
-    Set.add (Bitstring.copy bs) Set.empty
+    Set.add Set.Poly.empty (Bitstring.copy bs) 
   else (
     Bitstring.set bs bit;
     let keys_1 = child_keys_rec bs ~bit:(bit+1) ~len in
@@ -160,10 +155,11 @@ let unmarshal_of_string ~f s =
 (******************************************************************)
 
 let samesize set =
-  let sizes = Set.fold ~init:Set.empty set
-                ~f:(fun string set -> Set.add (String.length string) set)
+  let sizes = 
+    Set.fold ~init:Int.Set.empty set
+      ~f:(fun set string -> Set.add set (String.length string))
   in
-  let nsizes = Set.cardinal sizes in
+  let nsizes = Set.length sizes in
   nsizes = 1 || nsizes = 0
 
 let marshal_node (cout:Channel.out_channel_obj) n =
@@ -176,7 +172,7 @@ let marshal_node (cout:Channel.out_channel_obj) n =
        Leaf set ->
          cout#write_byte 1;
          assert (samesize set);
-         cout#write_int (Set.cardinal set);
+         cout#write_int (Set.length set);
          Set.iter ~f:(fun s -> cout#write_string s) set
      | Children _ ->
          cout#write_byte 0)
@@ -195,7 +191,7 @@ let unmarshal_node ~bitquantum ~num_samples (cin:Channel.in_channel_obj) =
     if isleaf then
       let size = cin#read_int in
       let a = Array.init size ~f:( fun i -> cin#read_string zzp_len ) in
-      Leaf (Set.of_list (Array.to_list a))
+      Leaf (String.Set.of_list (Array.to_list a))
     else
       let ckeys = child_keys_raw bitquantum key in
       Children (Array.map ~f:(fun key -> OnDisk key)
@@ -417,13 +413,13 @@ let summarize_tree ~lagg ~cagg tree =
 let depth tree =
   summarize_tree
     ~lagg:(fun _ -> 1)
-    ~cagg:(fun depths -> 1 + MArray.max depths)
+    ~cagg:(fun depths -> 1 + Array.reduce_exn ~f:Int.max depths)
     tree
 
 let count_nodes tree =
   summarize_tree
     ~lagg:(fun _ -> 1)
-    ~cagg:(fun counts -> 1 + Array.fold_left ~f:(+) ~init:0 counts)
+    ~cagg:(fun counts -> 1 + Array.fold ~f:(+) ~init:0 counts)
     tree
 
 let (<+>) (x1,y1) (x2,y2) = (x1 + x2, y1 + y2)
@@ -434,20 +430,20 @@ let count_node_types tree =
     ~lagg:(fun _ -> (0,1))
     ~cagg:(fun counts ->
              (1,0) <+>
-             Array.fold_left ~f:(<+>) ~init:(0,0) counts
+             Array.fold ~f:(<+>) ~init:(0,0) counts
           )
     tree
 
 let get_elements tree node =
   summarize_tree_rec
     ~lagg:(fun x -> x)
-    ~cagg:(fun sets -> Array.fold_left ~f:Set.union ~init:Set.empty sets)
+    ~cagg:(fun sets -> Array.fold ~f:Set.union ~init:String.Set.empty sets)
     tree (InMem node)
 
 let get_zzp_elements tree node =
   let selem = get_elements tree node in
-  Set.fold selem ~init:ZSet.empty
-    ~f:(fun x set -> ZSet.add (ZZp.of_bytes x) set)
+  Set.fold selem ~init:ZZp.Set.empty
+    ~f:(fun set x -> Set.add set (ZZp.of_bytes x))
 
 let iter ~f tree =
   summarize_tree
@@ -467,7 +463,7 @@ let rec count_inmem node = match node.children with
                                    | InMem cnode -> count_inmem cnode)
                      children
       in
-      1 + Array.fold_left ~f:(+) ~init:0 counts
+      1 + Array.fold ~f:(+) ~init:0 counts
 
 (** returns the number of inmen nodes in the tree,
   not counting the root. *)
@@ -671,7 +667,7 @@ let decr_inmem_count tree =
 let create_node_basic key points =
   { svalues = create_svalues points;
     num_elements = 0;
-    children = Leaf Set.empty;
+    children = Leaf String.Set.empty;
     key = key;
     wstatus = Dirty;
   }
@@ -686,12 +682,12 @@ let add_to_node t node zz zzs marray =
   node.num_elements <- node.num_elements + 1;
   node.wstatus <- Dirty;
   match node.children with
-    | Leaf elements ->
-        node.children <-
-        if Set.mem zzs elements
-        then failwith "add_to_node: attempt to reinsert element into prefix tree"
-        else Leaf (Set.add zzs elements)
-    | _ -> ()
+  | Leaf elements ->
+    node.children <-
+      if Set.mem elements zzs
+      then failwith "add_to_node: attempt to reinsert element into prefix tree"
+      else Leaf (Set.add elements zzs)
+  | _ -> ()
 
 let remove_from_node t node zz zzs marray =
   ZZp.mult_array ~svalues:node.svalues marray;
@@ -699,9 +695,10 @@ let remove_from_node t node zz zzs marray =
   node.wstatus <- Dirty;
   match node.children with
     | Leaf elements ->
-        if not (Set.mem zzs elements)
-        then failwith "remove_from_node: attempt to delete non-existant element from prefix tree"
-        else node.children <- Leaf (Set.remove zzs elements)
+        if not (Set.mem elements zzs)
+        then failwith "remove_from_node: attempt to delete \
+                       non-existant element from prefix tree"
+        else node.children <- Leaf (Set.remove elements zzs)
     | _ -> ()
 
 
@@ -845,23 +842,23 @@ let rec get_ondisk_subkeys tree db key =
     ignore (db.load (dbkey_of_key key));
     let ckeys = child_keys tree key in
     let sets = List.map ~f:(get_ondisk_subkeys tree db) ckeys in
-    Set.add key (List.fold_left ~f:Set.union sets ~init:Set.empty)
+    Set.add (List.fold ~f:Set.union sets ~init:Set.Poly.empty) key
   with
-      Not_found -> (* has no subkeys, so emptyset *)
-        Set.empty
+    Not_found -> (* has no subkeys, so emptyset *)
+    Set.Poly.empty
 
 let rec delete_at_depth t txn zz zzs node marray depth =
   remove_from_node t node zz zzs marray;
   match node.children with
     | Children children ->
         if node.num_elements <=  t.join_thresh then (
-          let elements = Set.remove zzs (get_elements t node) in
+          let elements = Set.remove (get_elements t node) zzs in
           node.children <- Leaf elements;
           match t.db with
               None -> ()
             | Some db ->
                 let subkeys = get_ondisk_subkeys t db node.key in
-                let subkeys = Set.remove node.key subkeys in
+                let subkeys = Set.remove subkeys node.key in
                 let inmem_delta = count_inmem node - 1 in
                 Set.iter ~f:(fun key -> db.delete txn (dbkey_of_key key))
                   subkeys;
@@ -971,8 +968,8 @@ let points tree = tree.points
 
 let elements tree node =
   let pset = get_elements tree node in
-  Set.fold ~f:(fun zzs set -> ZSet.add (ZZp.of_bytes zzs) set)
-    ~init:ZSet.empty pset
+  Set.fold ~f:(fun set zzs -> Set.add set (ZZp.of_bytes zzs))
+    ~init:ZZp.Set.empty pset
 
 
 (******************************************************************)
@@ -987,32 +984,32 @@ let node_size tree nodedisk =
 let nonempty_children tree children =
   let sizes = Array.map ~f:(node_size tree) children in
   let nonempty = Array.mapi ~f:(fun i s -> (i,s > 0) ) sizes in
-  Array.fold_left ~f:(fun list (i,nonempty) ->
+  Array.fold ~f:(fun list (i,nonempty) ->
                         if nonempty then i::list else list)
     ~init:[] nonempty
 
 let random_element list =
   let i = Random.int (List.length list) in
-  List.nth list i
+  List.nth_exn list i
 
 let rec get_random tree node =
   match node.children with
-      Leaf children ->
-        if Set.is_empty children then raise Not_found
-        else
-          let elements = Set.elements children in
-          let i = Random.int (Set.cardinal children) in
-          List.nth elements i
-    | Children children ->
-        let nonempty = nonempty_children tree children in
-        if List.length nonempty = 0
-        then raise (Bug "Internal node with no nonempty children");
-        let randchild =
-          match children.(random_element nonempty) with
-              InMem node -> node
-            | OnDisk key -> load_node tree (dbkey_of_key key)
-        in
-        get_random tree randchild
+  | Leaf children ->
+    if Set.is_empty children then raise Not_found
+    else
+      let elements = Set.elements children in
+      let i = Random.int (Set.length children) in
+      List.nth_exn elements i
+  | Children children ->
+    let nonempty = nonempty_children tree children in
+    if List.length nonempty = 0
+    then raise (Bug "Internal node with no nonempty children");
+    let randchild =
+      match children.(random_element nonempty) with
+      | InMem node -> node
+      | OnDisk key -> load_node tree (dbkey_of_key key)
+    in
+    get_random tree randchild
 
 
 let set_synctime tree synctime = tree.synctime <- synctime

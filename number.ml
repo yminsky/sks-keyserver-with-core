@@ -22,9 +22,7 @@
 (***********************************************************************)
 
 open Big_int
-open StdLabels
-open MoreLabels
-open Printf
+open Core.Std
 open Common
 
 type z = Big_int.big_int
@@ -60,9 +58,9 @@ let width_pow = power_int_positive_int 2 width
 
 let revstring s =
   let len = String.length s in
-  let copy = String.create len in
+  let copy = Bytes.create len in
   for i = 0 to len - 1 do
-    copy.[i] <- s.[len - 1 - i]
+    Bytes.set copy i (Bytes.get s (len - 1 - i))
   done;
   copy
 

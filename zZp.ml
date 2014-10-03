@@ -20,14 +20,28 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
-module Unix=UnixLabels
-open Printf
+open Core.Std
 
 module N = Number
 open Number.Infix
 (* open Big_int *)
+
+
+module T = struct
+  module T1 = struct
+    type t = Number.z
+    let to_string = Number.to_string
+    let of_string = Number.of_string
+    include Sexpable.Of_stringable(struct
+      type t = Number.z
+      let to_string = to_string
+      let of_string = of_string
+    end)
+    let compare = Number.compare
+  end
+  include T1
+  include Comparable.Make(T1)
+end
 
 type zz = Number.z
 type zzref = Number.z ref
@@ -88,9 +102,7 @@ let gt = ( >! )
 let eq = ( =! )
 let neq x y = not (x =! y)
 
-let to_string = Number.to_string
-let of_string = Number.of_string
-let print x = print_string (to_string x)
+let print x = print_string (T.to_string x)
 
 let points n = Array.init n
   ~f:(fun i ->
@@ -184,16 +196,6 @@ let mut_array_of_array array = Array.copy array
 let to_string_array x =
   Array.init 1 ~f:(fun i -> to_bytes x)
 
-module Set = Set.Make(struct
-                        type t = zz
-                        let compare = Number.compare
-                      end)
-
-let zset_of_list list =
-  List.fold_left ~init:Set.empty
-    ~f:(fun x y -> Set.add y x) list
-
-
 let of_number x = x
 let canonical_of_number x =
   x %! !order
@@ -204,8 +206,7 @@ let rand bits =
   let n = Prime.randint bits !order in
   n %! !order
 
-module Infix =
-struct
+module Infix = struct
   let ( +: ) = add
   let ( -: ) = sub
   let ( *: ) = mul
@@ -213,3 +214,5 @@ struct
   let ( =: ) = ( =! )
   let ( <>: ) = ( <>! )
 end
+
+include T

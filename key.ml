@@ -20,10 +20,8 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
+open Core.Std
 open Packet
-module Set = PSet.Set
 
 exception Bug of string
 
@@ -32,28 +30,28 @@ exception Bug of string
 
 let rec pos_next_rec ps partial =
   match SStream.peek ps with
-      None -> Some (List.rev partial)
-    | Some (_,packet) ->
-        if packet.packet_type = Public_Key_Packet
-        then Some (List.rev partial)
-        else (
-          SStream.junk ps;
-          pos_next_rec ps (packet::partial)
-        )
+  | None -> Some (List.rev partial)
+  | Some (_,packet) ->
+    if packet.packet_type = Public_Key_Packet
+    then Some (List.rev partial)
+    else (
+      SStream.junk ps;
+      pos_next_rec ps (packet::partial)
+    )
 
 let pos_next ps =
   match SStream.peek ps with
-      None -> None
-    | Some (pos,pack) ->
-        SStream.junk ps;
-        match pos_next_rec ps [pack] with
-            Some key -> Some (pos,key)
-          | None -> None
+    None -> None
+  | Some (pos,pack) ->
+    SStream.junk ps;
+    match pos_next_rec ps [pack] with
+      Some key -> Some (pos,key)
+    | None -> None
 
 let pos_get ps =
   match pos_next ps with
-      None -> raise Not_found
-    | Some key -> key
+  | None -> raise Not_found
+  | Some key -> key
 
 let pos_next_of_channel cin =
   let ps =
@@ -73,26 +71,26 @@ let pos_get_of_channel cin =
 
 let rec next_rec ps partial =
   match SStream.peek ps with
-      None -> Some (List.rev partial)
-    | Some packet ->
-        if packet.packet_type = Public_Key_Packet
-        then Some (List.rev partial)
-        else (
-          SStream.junk ps;
-          next_rec ps (packet::partial)
-        )
+  | None -> Some (List.rev partial)
+  | Some packet ->
+    if packet.packet_type = Public_Key_Packet
+    then Some (List.rev partial)
+    else (
+      SStream.junk ps;
+      next_rec ps (packet::partial)
+    )
 
 let next ps =
   match SStream.peek ps with
-      None -> None
-    | Some pack ->
-        SStream.junk ps;
-        next_rec ps [pack]
+  | None -> None
+  | Some pack ->
+    SStream.junk ps;
+    next_rec ps [pack]
 
 let get ps =
   match next ps with
-      None -> raise Not_found
-    | Some key -> key
+  | None -> raise Not_found
+  | Some key -> key
 
 let next_of_channel cin =
   let ps =
@@ -111,12 +109,12 @@ let get_of_channel cin =
 
 (*************************************************************)
 
-let rec get_ids key = match key with
-    [] -> []
+let rec get_ids = function
+  | [] -> []
   | packet::tail ->
-      if packet.packet_type = User_ID_Packet
-      then packet.packet_body::(get_ids tail)
-      else get_ids tail
+    if packet.packet_type = User_ID_Packet
+    then packet.packet_body::(get_ids tail)
+    else get_ids tail
 
 (*************************************************************)
 
@@ -131,16 +129,16 @@ let to_string key =
 let of_string keystr =
   let cin = new Channel.string_in_channel keystr 0 in
   match next_of_channel cin () with
-      None -> raise (Bug "key should have appeared")
-    | Some key -> key
+    None -> raise (Bug "key should have appeared")
+  | Some key -> key
 
 let of_string_multiple keystr =
   let cin = new Channel.string_in_channel keystr 0 in
   let next = next_of_channel cin in
   let rec loop () =
     match next () with
-        None -> []
-      | Some key -> key::(loop ())
+      None -> []
+    | Some key -> key::(loop ())
   in
   loop ()
 
@@ -154,5 +152,5 @@ let to_string_multiple keys =
 let to_words key =
   let userids = get_ids key in
   let wordsets = List.map ~f:Utils.extract_word_set userids in
-  Set.elements (List.fold_left ~init:Set.empty ~f:Set.union
+  Set.to_list (List.fold_left ~init:String.Set.empty ~f:Set.union
                   wordsets)

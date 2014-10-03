@@ -98,7 +98,7 @@ let marshal_set ~f cout set =
 
 let unmarshal_set ~f cin =
   let array = unmarshal_array ~f cin in
-  ZZp.zset_of_list (Array.to_list array)
+  ZZp.Set.of_list (Array.to_list array)
 
 (*************************************************************)
 

@@ -2,9 +2,6 @@ exception Bug of string
 exception Transaction_aborted of string
 exception Argument_error of string
 exception Unit_test_failure of string
-val ( |< ) : ('a, 'b) PMap.Map.t -> 'a -> 'b -> ('a, 'b) PMap.Map.t
-val ( |= ) : ('a, 'b) PMap.Map.t -> 'a -> 'b
-val ( |! ) : 'a -> ('a -> 'b) -> 'b
 val enforced_filters : string list
 val version_tuple : int * int * int
 val version_suffix : string

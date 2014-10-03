@@ -21,29 +21,19 @@
 (** Common services, including error reporting, logging,
   exception handling and port definitions  *)
 
-open Printf
-open StdLabels
-open MoreLabels
-module Unix = UnixLabels
+open Core.Std
 
 exception Bug of string
 exception Transaction_aborted of string
 exception Argument_error of string
 exception Unit_test_failure of string
 
-module Map = PMap.Map
-let (|<) map key = (fun data -> Map.add ~key ~data map)
-let (|=) map key = Map.find key map
-
-(** Function sequencing *)
-let (|!) x f = f x
-
 (********************************************************************)
 
 (** filters applied to all incoming keys *)
 let enforced_filters = ["yminsky.dedup"]
 
-let version_tuple = (__VERSION__)
+let version_tuple = Version_tuple.v
 (* for Release versions, COMMONCAMLFLAGS in Makefile should include          *)
 (* '-warn-error a'. Development work should use '-warn-error A' for stricter *)
 (* language checking. This affects the Ocaml compiler beginning with v4.01.0 *)
@@ -67,7 +57,7 @@ let err_to_string err = match err with
     Unix.Unix_error (enum,fname,param) ->
       sprintf "Unix error: %s - %s(%s)"
       (Unix.error_message enum) fname param
-  | e -> Printexc.to_string e
+  | e -> Exn.to_string e
 
 (**************************************************************************)
 (** Logfile control *)
@@ -78,18 +68,18 @@ let stored_logfile_name = ref None
 (**************************************************************************)
 
 let plerror level format =
-  kprintf (fun s ->
-             if !Settings.debug && level  <= !Settings.debuglevel
-             then  (
-               let tm = Unix.localtime (Unix.time ()) in
-               fprintf !logfile "%04d-%02d-%02d %02d:%02d:%02d "
-                 (tm.Unix.tm_year + 1900) (tm.Unix.tm_mon + 1)
-                 tm.Unix.tm_mday (* date *)
-                 tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec; (* time *)
-               output_string !logfile s;
-               output_string !logfile "\n";
-               flush !logfile;
-             ) )
+  ksprintf (fun s ->
+    if !Settings.debug && level  <= !Settings.debuglevel
+    then (
+      let tm = Unix.localtime (Unix.time ()) in
+      fprintf !logfile "%04d-%02d-%02d %02d:%02d:%02d "
+        (tm.Unix.tm_year + 1900) (tm.Unix.tm_mon + 1)
+        tm.Unix.tm_mday (* date *)
+        tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec; (* time *)
+      output_string !logfile s;
+      output_string !logfile "\n";
+      flush !logfile;
+    ))
     format
 
 (**************************************************************************)
@@ -106,7 +96,7 @@ let reopen_logfile () =
   match !stored_logfile_name with
     | None -> ()
     | Some name ->
-        close_out !logfile;
+        Out_channel.close !logfile;
         logfile := open_out_gen [ Open_wronly; Open_creat; Open_append; ]
           0o600 name
 
@@ -115,19 +105,19 @@ let reopen_logfile () =
 let perror x = plerror 3 x
 
 let eplerror level e format =
-  kprintf (fun s ->
-             if !Settings.debug && level  <= !Settings.debuglevel
-             then  (
-               let tm = Unix.localtime (Unix.time ()) in
-               fprintf !logfile "%04d-%02d-%02d %02d:%02d:%02d "
-                 (tm.Unix.tm_year + 1900) (tm.Unix.tm_mon + 1)
-                 tm.Unix.tm_mday (* date *)
-                 tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec;
-               output_string !logfile s;
-               fprintf !logfile ": %s\n" (err_to_string e);
-               flush !logfile;
-             )
-          )
+  ksprintf (fun s ->
+    if !Settings.debug && level  <= !Settings.debuglevel
+    then  (
+      let tm = Unix.localtime (Unix.time ()) in
+      fprintf !logfile "%04d-%02d-%02d %02d:%02d:%02d "
+        (tm.Unix.tm_year + 1900) (tm.Unix.tm_mon + 1)
+        tm.Unix.tm_mday (* date *)
+        tm.Unix.tm_hour tm.Unix.tm_min tm.Unix.tm_sec;
+      output_string !logfile s;
+      fprintf !logfile ": %s\n" (err_to_string e);
+      flush !logfile;
+    )
+  )
     format
 
 let eperror x = eplerror 3 x
@@ -142,12 +132,12 @@ let handle_interrupt i =
   then raise Sys.Break
 
 
-let () = Sys.set_signal Sys.sigterm (Sys.Signal_handle handle_interrupt)
-let () = Sys.set_signal Sys.sigint (Sys.Signal_handle handle_interrupt)
-let () = Sys.set_signal Sys.sigpipe Sys.Signal_ignore
-let () = Sys.set_signal Sys.sigusr2 Sys.Signal_ignore
-let () = Sys.set_signal Sys.sighup
-           (Sys.Signal_handle (fun _ -> reopen_logfile ()))
+let () = 
+  Signal.Expert.handle Signal.term (handle_interrupt);
+  Signal.Expert.handle Signal.int (handle_interrupt);
+  Signal.Expert.set Signal.pipe `Ignore;
+  Signal.Expert.set Signal.usr2 `Ignore;
+  Signal.Expert.handle Signal.int (fun _ -> reopen_logfile ())
 
 let set_catch_break bool =
   catch_break := bool
@@ -187,7 +177,7 @@ let rec filter_opts optlist = match optlist with
 
 let decomment l =
   try
-    let pos = String.index l '#' in
+    let pos = String.index_exn l '#' in
     String.sub l ~pos:0 ~len:pos
   with
       Not_found -> l
@@ -218,7 +208,7 @@ let make_addr_list address_string port =
   let servname = if port = 0 then "" else (string_of_int port) in
   let resolver host = List.map ~f:(fun ai -> ai.Unix.ai_addr)
       (Unix.getaddrinfo host servname [Unix.AI_SOCKTYPE Unix.SOCK_STREAM]) in
-  List.flatten (List.map ~f:resolver addrlist)
+  List.concat_map ~f:resolver addrlist
 
 let recon_port = !Settings.recon_port
 let recon_address = !Settings.recon_address
@@ -242,5 +232,5 @@ let get_client_recon_addr =
 
 let match_client_recon_addr addr =
   let family = Unix.domain_of_sockaddr addr in
-  List.find ~f:(fun caddr -> family = Unix.domain_of_sockaddr caddr)
+  List.find_exn ~f:(fun caddr -> family = Unix.domain_of_sockaddr caddr)
     (get_client_recon_addr ())
