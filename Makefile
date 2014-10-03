@@ -55,7 +55,7 @@ endif
 CAMLP4=-pp $(CAMLP4O)
 CAMLINCLUDE= -I lib -I bdb
 COMMONCAMLFLAGS=$(CAMLINCLUDE) $(OCAMLLIB) -ccopt -Lbdb -dtypes $(WARNERR) \
-		-thread -package core
+		-thread -package core -w -40
 OCAMLDEP=ocamlfind ocamldep $(CAMLP4) -package core
 CAMLLIBS=str.cma bdb.cma nums.cma cryptokit.cma
 OCAMLFLAGS=$(COMMONCAMLFLAGS) -g $(CAMLLIBS)
