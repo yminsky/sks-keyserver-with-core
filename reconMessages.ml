@@ -20,13 +20,9 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
-open Printf
+open Core.Std
 open CMarshal
 open Common
-module Unix=UnixLabels
-module Map = PMap.Map
 
 (***********************************)
 (* ZZ-specific marshallers ********)
@@ -58,7 +54,7 @@ let marshal_zset cout set =
 
 let unmarshal_zset cin =
   let array = unmarshal_array ~f:unmarshal_ZZp cin in
-  ZZp.zset_of_list (Array.to_list array)
+  ZZp.Set.of_list (Array.to_list array)
 
 (***********************************)
 (* Data Types  ********************)
@@ -111,7 +107,7 @@ let unmarshal_recon_rqst_full cin =
 (***********************************)
 
 (* recon request where full data is sent *)
-type configdata = (string,string) Map.t
+type configdata = string String.Map.t
 (* type metadata = { md_recon_addr: Unix.sockaddr; } *)
 
 let marshal_stringpair cout (s1,s2) =
@@ -132,12 +128,12 @@ let marshal_configdata cout configdata =
   marshal_stringpair_list cout (Map.to_alist configdata)
 
 let unmarshal_configdata cin =
-  Map.of_alist (unmarshal_stringpair_list cin)
+  String.Map.of_alist_exn (unmarshal_stringpair_list cin)
 
-let sockaddr_to_string sockaddr = match sockaddr with
-    Unix.ADDR_UNIX s -> sprintf "<ADDR_UNIX %s>" s
-  | Unix.ADDR_INET (addr,p) -> sprintf "<ADDR_INET [%s]:%d>"
-      (Unix.string_of_inet_addr addr) p
+let sockaddr_to_string = function
+  | Unix.ADDR_UNIX s -> sprintf "<ADDR_UNIX %s>" s
+  | Unix.ADDR_INET (addr,p) -> 
+    sprintf "<ADDR_INET [%s]:%d>" (Unix.Inet_addr.to_string addr) p
 
 
 (***********************************)
@@ -174,10 +170,10 @@ let rec msg_to_string msg =
          sprintf "ReconRqst_Poly(%s)" (Bitstring.to_string rp.rp_prefix)
      | ReconRqst_Full rf ->
          sprintf "ReconRqst_Full(%d,%s)"
-         (ZZp.Set.cardinal rf.rf_elements)
+         (Set.length rf.rf_elements)
          (Bitstring.to_string rf.rf_prefix)
-     | Elements s -> sprintf "Elements(len:%d)" (ZZp.Set.cardinal s)
-     | FullElements s -> sprintf "FullElements(len:%d)" (ZZp.Set.cardinal s)
+     | Elements s -> sprintf "Elements(len:%d)" (Set.length s)
+     | FullElements s -> sprintf "FullElements(len:%d)" (Set.length s)
      | SyncFail -> "SyncFail"
      | Done -> "Done"
      | Flush -> "Flush"
@@ -219,18 +215,18 @@ let rec marshal_msg cout msg = match msg with
 let rec unmarshal_msg cin =
   let msg_type = cin#read_byte in
   match msg_type with
-    | 0 -> ReconRqst_Poly (unmarshal_recon_rqst_poly cin)
-    | 1 -> ReconRqst_Full (unmarshal_recon_rqst_full cin)
-    | 2 -> Elements (unmarshal_zset cin)
-    | 3 -> FullElements (unmarshal_zset cin)
-    | 4 -> SyncFail
-    | 5 -> Done
-    | 6 -> Flush
-    | 7 -> Error (unmarshal_string cin)
-    | 8 -> DbRqst (unmarshal_string cin)
-    | 9 -> DbRepl (unmarshal_string cin)
-    | 10 -> Config (unmarshal_configdata cin)
-    | x -> failwith (sprintf "Unexpected message code: %d" x)
+  | 0 -> ReconRqst_Poly (unmarshal_recon_rqst_poly cin)
+  | 1 -> ReconRqst_Full (unmarshal_recon_rqst_full cin)
+  | 2 -> Elements (unmarshal_zset cin)
+  | 3 -> FullElements (unmarshal_zset cin)
+  | 4 -> SyncFail
+  | 5 -> Done
+  | 6 -> Flush
+  | 7 -> Error (unmarshal_string cin)
+  | 8 -> DbRqst (unmarshal_string cin)
+  | 9 -> DbRepl (unmarshal_string cin)
+  | 10 -> Config (unmarshal_configdata cin)
+  | x -> failwith (sprintf "Unexpected message code: %d" x)
 
 module M =
   NbMsgContainer.Container(

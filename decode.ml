@@ -21,15 +21,11 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open ZZp.Infix
-open StdLabels
-open MoreLabels
-module Unix=UnixLabels
-open Printf
-
-module ZSet = ZZp.Set
+module Poly_z = Poly
+open Core.Std
 open LinearAlg
 open ZZp.Infix
+module Poly = Poly_z
 
 exception Low_mbar
 exception Interpolation_failure
@@ -139,13 +135,13 @@ let rec rand_split f =
 let rec factor f =
   let degree = Poly.degree f in
   if degree = 1
-  then ZSet.add (ZZp.neg (Poly.const_coeff f)) ZSet.empty
+  then Set.add ZZp.Set.empty (ZZp.neg (Poly.const_coeff f))
   else if degree = 0
-  then ZSet.empty
+  then ZZp.Set.empty
   else
     let (f1,f2) = rand_split f in
     flush stdout;
-    ZSet.union (factor f1) (factor f2)
+    Set.union (factor f1) (factor f2)
 
 let shorten array =
   Array.init (Array.length array - 1) ~f:(fun i -> array.(i))
@@ -168,5 +164,5 @@ let reconcile ~values ~points ~d =
   in (aset,bset)
 
 let array_to_set array =
-  Array.fold_left ~f:(fun set el -> ZSet.add el set) ~init:ZSet.empty array
+  Array.fold ~f:(fun set el -> Set.add set el) ~init:ZZp.Set.empty array
 

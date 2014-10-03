@@ -22,14 +22,10 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
-module Unix=UnixLabels
+open Core.Std
 
 (** deterministic RNG *)
 let det_rng = Random.State.make [|104|]
-module Set = PSet.Set (* was: Polyset.Set *)
-module Map = PMap.Map
 
 let stringset_to_string stringset =
   let list = List.sort ~cmp:compare (Set.elements stringset) in
@@ -46,8 +42,11 @@ let digest_stringset strings =
 
 let print_lengths list =
   let list = List.sort ~cmp:compare list in
-  MList.print ~f:(fun s -> Printf.printf "%d" (String.length s))
-    list
+  List.map list ~f:String.length
+  |> List.map ~f:Int.to_string
+  |> String.concat ~sep:" "
+  |> (fun x -> "[ " ^ x ^ " ]")
+  |> print_string
 
 let rec fill_random_string rfunc string ~pos ~len =
   if pos < len then
@@ -77,7 +76,7 @@ let conv_chans (cin, cout) =
 (************************************************************)
 
 let add_random rfunc bytelength set =
-  Set.add (random_string rfunc bytelength) set
+  Set.add set (random_string rfunc bytelength) 
 
 let add_n_random rfunc bytelength ~n set =
   Utils.apply n (add_random rfunc bytelength) set
@@ -85,10 +84,10 @@ let add_n_random rfunc bytelength ~n set =
 let det_string_set ~bytes ~size =
   add_n_random
     (fun () -> Random.State.bits det_rng)
-    bytes ~n:size Set.empty
+    bytes ~n:size String.Set.empty
 
 let rand_string_set ~bytes ~size =
-  add_n_random Random.bits bytes ~n:size Set.empty
+  add_n_random Random.bits bytes ~n:size String.Set.empty
 
 let localize_string_set ~bytes ~diff set =
   add_n_random Random.bits bytes ~n:diff set
@@ -115,7 +114,7 @@ let print_string_set set =
 *)
 
 let add_sarray ~data sarray =
-  Array.fold_right ~f:(fun string set -> Set.add string set)
+  Array.fold_right ~f:(fun string set -> Set.add set string)
     sarray ~init:data
 
 (*****************************************************************)
@@ -133,8 +132,8 @@ let pad string bytes =
 
 
 let padset stringset bytes =
-  Set.fold ~f:(fun el set -> Set.add (pad el bytes) set)
-    ~init:Set.empty stringset
+  Set.fold ~f:(fun set el -> Set.add set (pad el bytes))
+    ~init:String.Set.empty stringset
 
 let truncate string bytes =
   let len = String.length string in
@@ -146,8 +145,8 @@ let truncate string bytes =
     string
 
 let truncset stringset bytes =
-  Set.fold ~f:(fun el set -> Set.add (truncate el bytes) set)
-    ~init:Set.empty stringset
+  Set.fold ~f:(fun set el -> Set.add set (truncate el bytes))
+    ~init:String.Set.empty stringset
 
 
 
@@ -160,10 +159,14 @@ let order_string = "530512889551602322505127520352579437339"
 (** Printing Functions *)
 
 let print_ZZp_list list =
-  let list = Sort.list (fun x y -> compare x y < 0) list in
-  MList.print2 ~f:ZZp.print list
+  let list = List.sort ~cmp:ZZp.compare list in
+  List.map ~f:ZZp.to_string list
+  |> String.concat ~sep:"\n "
+  |> (fun x -> "[ " ^ x ^ " ]")
+  |> print_endline
 
-let print_ZZp_set set = print_ZZp_list (Set.elements set)
+let print_ZZp_set set =
+  print_ZZp_list (Set.elements set)
 
 
 (*************  Initialization code ****************************)

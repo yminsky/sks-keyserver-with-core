@@ -54,8 +54,9 @@ endif
 
 CAMLP4=-pp $(CAMLP4O)
 CAMLINCLUDE= -I lib -I bdb
-COMMONCAMLFLAGS=$(CAMLINCLUDE) $(OCAMLLIB) -ccopt -Lbdb -dtypes $(WARNERR)
-OCAMLDEP=ocamldep $(CAMLP4)
+COMMONCAMLFLAGS=$(CAMLINCLUDE) $(OCAMLLIB) -ccopt -Lbdb -dtypes $(WARNERR) \
+		-thread -package core
+OCAMLDEP=ocamlfind ocamldep $(CAMLP4) -package core
 CAMLLIBS=unix.cma str.cma bdb.cma nums.cma bigarray.cma cryptokit.cma
 OCAMLFLAGS=$(COMMONCAMLFLAGS) -g $(CAMLLIBS)
 OCAMLOPTFLAGS=$(COMMONCAMLFLAGS) -inline 40 $(CAMLLIBS:.cma=.cmxa)
@@ -69,8 +70,7 @@ all.bc: $(ALL.bc)
 
 COBJS=crc.o
 
-MOBJS.bc= pSet.cmo pMap.cmo utils.cmo heap.cmo mList.cmo \
-       mTimer.cmo mArray.cmo
+MOBJS.bc= utils.cmo heap.cmo mTimer.cmo
 
 MOBJS=$(MOBJS.bc:.cmo=.cmx)
 
@@ -117,18 +117,19 @@ FILES := $(shell sed s/.*/$(VERSIONPREFIX)\\/\&/ FILES)
 
 # Special case make rules for functions which require preprocessor directives
 
-common.cmx: common.ml VERSION
-	$(OCAMLOPT) $(OCAMLOPTFLAGS) \
+version_tuple.cmx: version_tuple.ml VERSION
+	ocamlfind $(OCAMLOPT) $(OCAMLOPTFLAGS) \
 	-pp "sed s/__VERSION__/$(COMMA_VERSION)/" -c $<
 
-common.cmo: common.ml VERSION
-	$(OCAMLC) $(OCAMLFLAGS) -pp "sed s/__VERSION__/$(COMMA_VERSION)/" -c $<
+version_tuple.cmo: version_tuple.ml VERSION
+	ocamlfind $(OCAMLC) $(OCAMLFLAGS) \
+	-pp "sed s/__VERSION__/$(COMMA_VERSION)/" -c $<
 
 keyMerge.cmo: keyMerge.ml
-	$(OCAMLC) $(OCAMLFLAGS) $(CAMLP4) -c $<
+	ocamlfind $(OCAMLC) $(OCAMLFLAGS) $(CAMLP4) -c $<
 
 keyMerge.cmx: keyMerge.ml
-	$(OCAMLOPT) $(OCAMLOPTFLAGS) $(CAMLP4) -c $<
+	ocamlfind $(OCAMLOPT) $(OCAMLOPTFLAGS) $(CAMLP4) -c $<
 
 # Special targets
 
@@ -162,86 +163,85 @@ sks.8: sks.pod
 	pod2man -c "SKS OpenPGP Key server" --section 8 -r 0.1 -name sks sks.pod sks.8
 
 spider: $(LIBS) $(ALLOBJS) spider.cmx
-	$(OCAMLOPT) -o spider $(OCAMLOPTFLAGS) $(ALLOBJS) spider.cmx
+	ocamlfind $(OCAMLOPT) -o spider $(OCAMLOPTFLAGS) $(ALLOBJS) spider.cmx
 
 spider.bc: $(LIBS.bc) $(ALLOBJS.bc) spider.cmo
-	$(OCAMLC) -o spider.bc $(OCAMLFLAGS) $(ALLOBJS.bc) spider.cmo
+	ocamlfind $(OCAMLC) -o spider.bc $(OCAMLFLAGS) $(ALLOBJS.bc) spider.cmo
 
 sksclient: $(LIBS) $(ALLOBJS) sksclient.cmx
-	$(OCAMLOPT) -o sksclient $(OCAMLOPTFLAGS) $(ALLOBJS) sksclient.cmx
+	ocamlfind $(OCAMLOPT) -o sksclient $(OCAMLOPTFLAGS) $(ALLOBJS) sksclient.cmx
 
 sksclient.bc: $(LIBS.bc) $(ALLOBJS.bc) sksclient.cmo
-	$(OCAMLC) -o sksclient.bc $(OCAMLFLAGS) $(ALLOBJS.bc) sksclient.cmo
+	ocamlfind $(OCAMLC) -o sksclient.bc $(OCAMLFLAGS) $(ALLOBJS.bc) sksclient.cmo
 
 sks: $(LIBS) $(ALLOBJS) sks.cmx
-	$(OCAMLOPT) -o sks $(OCAMLOPTFLAGS) $(ALLOBJS) sks.cmx
+	ocamlfind $(OCAMLOPT) -o sks $(OCAMLOPTFLAGS) $(ALLOBJS) sks.cmx
 
 sks.bc: $(LIBS.bc) $(ALLOBJS.bc) sks.cmo
-	$(OCAMLC) -o sks.bc $(OCAMLFLAGS) $(ALLOBJS.bc) sks.cmo
+	ocamlfind $(OCAMLC) -o sks.bc $(OCAMLFLAGS) $(ALLOBJS.bc) sks.cmo
 
 nbtest.bc: $(LIBS.bc) $(ALLOBJS.bc) nbtest.cmo
-	$(OCAMLC) -o nbtest.bc $(OCAMLFLAGS) $(ALLOBJS.bc) nbtest.cmo
+	ocamlfind $(OCAMLC) -o nbtest.bc $(OCAMLFLAGS) $(ALLOBJS.bc) nbtest.cmo
 
 ptest: $(LIBS) $(ALLOBJS) ptest.cmx
-	$(OCAMLOPT) -o ptest $(OCAMLOPTFLAGS) $(ALLOBJS) \
+	ocamlfind $(OCAMLOPT) -o ptest $(OCAMLOPTFLAGS) $(ALLOBJS) \
 	ptest.cmx
 
 ptree_consistency_test: $(LIBS) $(ALLOBJS) reconPTreeDb.cmx \
 		ptree_consistency_test.cmx
-	$(OCAMLOPT) -o ptree_consistency_test $(OCAMLOPTFLAGS) $(ALLOBJS) \
+	ocamlfind $(OCAMLOPT) -o ptree_consistency_test $(OCAMLOPTFLAGS) $(ALLOBJS) \
 	reconPTreeDb.cmx ptree_consistency_test.cmx
 
 ptree_consistency_test.bc: $(LIBS.bc) $(ALLOBJS.bc) reconPTreeDb.cmo \
 		ptree_consistency_test.cmo
-	$(OCAMLC) -o ptree_consistency_test.bc $(OCAMLFLAGS) $(ALLOBJS.bc) \
-	reconPTreeDb.cmo ptree_consistency_test.cmo
+	ocamlfind $(OCAMLC) -o ptree_consistency_test.bc $(OCAMLFLAGS) \
+	$(ALLOBJS.bc) reconPTreeDb.cmo ptree_consistency_test.cmo
 
 ptree_db_test: $(LIBS) $(ALLOBJS) reconPTreeDb.cmx \
 		ptree_db_test.cmx
-	$(OCAMLOPT) -o ptree_db_test $(OCAMLOPTFLAGS) $(ALLOBJS) \
+	ocamlfind $(OCAMLOPT) -o ptree_db_test $(OCAMLOPTFLAGS) $(ALLOBJS) \
 	reconPTreeDb.cmx ptree_db_test.cmx
 
 ptree_db_test.bc: $(LIBS.bc) $(ALLOBJS.bc) reconPTreeDb.cmo \
 		ptree_db_test.cmo
-	$(OCAMLC) -o ptree_db_test.bc $(OCAMLFLAGS) $(ALLOBJS.bc) \
+	ocamlfind $(OCAMLC) -o ptree_db_test.bc $(OCAMLFLAGS) $(ALLOBJS.bc) \
 	reconPTreeDb.cmo ptree_db_test.cmo
 
 sks_do.bc: $(LIBS.bc) $(ALLOBJS.bc) sks_do.cmo
-	$(OCAMLC) -o sks_do.bc $(OCAMLFLAGS) $(ALLOBJS.bc) sks_do.cmo
+	ocamlfind $(OCAMLC) -o sks_do.bc $(OCAMLFLAGS) $(ALLOBJS.bc) sks_do.cmo
 
 sks_do: $(LIBS) $(ALLOBJS) sks_do.cmx
-	$(OCAMLOPT) -o sks_do $(OCAMLOPTFLAGS) $(ALLOBJS) sks_do.cmx
+	ocamlfind $(OCAMLOPT) -o sks_do $(OCAMLOPTFLAGS) $(ALLOBJS) sks_do.cmx
 
 
-sks_add_mail.bc: pMap.cmo pSet.cmo add_mail.cmo
-	$(OCAMLC) -o sks_add_mail.bc -g unix.cma \
-	pMap.cmo pSet.cmo add_mail.cmo
+sks_add_mail.bc: add_mail.cmo
+	ocamlfind $(OCAMLC) -o sks_add_mail.bc -g unix.cma \
+	add_mail.cmo
 
-sks_add_mail: $(LIBS) pMap.cmx pSet.cmx add_mail.cmx
-	$(OCAMLOPT) -o sks_add_mail unix.cmxa \
-	pMap.cmx pSet.cmx add_mail.cmx
+sks_add_mail: $(LIBS) add_mail.cmx
+	ocamlfind $(OCAMLOPT) -o sks_add_mail unix.cmxa add_mail.cmx
 
 ocamldoc.out: $(ALLOBJS) $(EXEOBJS)
 	ocamldoc -hide Pervasives,UnixLabels,MoreLabels \
 	-dot $(CAMLP4O) -d doc -I lib -I bdb *.mli *.ml
 
 sks_logdump.bc: $(LIBS.bc) $(ALLOBJS.bc) logdump.cmo
-	$(OCAMLC) -o sks_logdump.bc $(OCAMLFLAGS) $(ALLOBJS.bc) logdump.cmo
+	ocamlfind $(OCAMLC) -o sks_logdump.bc $(OCAMLFLAGS) $(ALLOBJS.bc) logdump.cmo
 
 sks_logdump: $(LIBS) $(ALLOBJS) logdump.cmx
-	$(OCAMLOPT) -o sks_logdump $(OCAMLOPTFLAGS) $(ALLOBJS) \
+	ocamlfind $(OCAMLOPT) -o sks_logdump $(OCAMLOPTFLAGS) $(ALLOBJS) \
 	logdump.cmx
 
 bugscript: $(LIBS) $(ALLOBJS) reconPTreeDb.cmx bugscript.cmx
-	$(OCAMLOPT) -o bugscript $(OCAMLOPTFLAGS) $(ALLOBJS) \
+	ocamlfind $(OCAMLOPT) -o bugscript $(OCAMLOPTFLAGS) $(ALLOBJS) \
 	reconPTreeDb.cmx bugscript.cmx
 
 bugscript.bc: $(LIBS.bc) $(ALLOBJS.bc) reconPTreeDb.cmo bugscript.cmo
-	$(OCAMLC) -o bugscript.bc $(OCAMLFLAGS) $(ALLOBJS.bc) \
+	ocamlfind $(OCAMLC) -o bugscript.bc $(OCAMLFLAGS) $(ALLOBJS.bc) \
 	reconPTreeDb.cmo bugscript.cmo
 
 ptree_replay: $(LIBS) $(ALLOBJS) reconPTreeDb.cmx ptree_replay.cmx
-	$(OCAMLOPT) -o ptree_replay $(OCAMLOPTFLAGS) $(ALLOBJS) \
+	ocamlfind $(OCAMLOPT) -o ptree_replay $(OCAMLOPTFLAGS) $(ALLOBJS) \
 	reconPTreeDb.cmx ptree_replay.cmx
 
 modules.dot: ocamldoc.out
@@ -308,17 +308,19 @@ lib/cryptokit.cmxa: lib/cryptokit.cma
 # old stuff
 ################################
 prefix_test: $(ALLOBJS) prefix_test.cmx
-	$(OCAMLOPT) -o prefix_test $(OCAMLOPTFLAGS) $(ALLOBJS) prefix_test.cmx
+	ocamlfind $(OCAMLOPT) -o prefix_test $(OCAMLOPTFLAGS) \
+	$(ALLOBJS) prefix_test.cmx
 
 prefix_test.opt: $(ROBJS.opt) prefix_test.cmx
-	$(OCAMLOPT) -o prefix_test.opt $(OCAMLOPTFLAGS) $(ROBJS.opt) \
+	ocamlfind $(OCAMLOPT) -o prefix_test.opt $(OCAMLOPTFLAGS) $(ROBJS.opt) \
 	prefix_test.cmx
 
 pdiskTest: $(LIBS) $(MOBJS) $(ROBJS) pdiskTest.cmo
-	$(OCAMLC) -o pdiskTest $(OCAMLFLAGS) $(MOBJS) $(ROBJS) pdiskTest.cmo
+	ocamlfind $(OCAMLC) -o pdiskTest $(OCAMLFLAGS) $(MOBJS) \
+	$(ROBJS) pdiskTest.cmo
 
 pdiskTest.opt: $(LIBS.opt) $(MOBJS.opt) $(ROBJS.opt) pdiskTest.cmx
-	$(OCAMLOPT) -o pdiskTest.opt $(OCAMLOPTFLAGS) \
+	ocamlfind $(OCAMLOPT) -o pdiskTest.opt $(OCAMLOPTFLAGS) \
 	$(MOBJS.opt) $(ROBJS.opt) pdiskTest.cmx
 
 pdtcaml: $(LIBS) $(ROBJS) pdiskTest.cmo
@@ -326,34 +328,35 @@ pdtcaml: $(LIBS) $(ROBJS) pdiskTest.cmo
 	$(ROBJS) pdiskTest.cmo
 
 script: $(LIBS) $(ALLOBJS) script.cmo
-	$(OCAMLC) -o script $(OCAMLFLAGS) $(ALLOBJS) script.cmo
+	ocamlfind $(OCAMLC) -o script $(OCAMLFLAGS) $(ALLOBJS) script.cmo
 
 dbtest.bc: $(LIBS.bc) $(ALLOBJS.bc) dbtest.cmo
-	$(OCAMLC) -o dbtest.bc $(OCAMLFLAGS) $(ALLOBJS.bc) dbtest.cmo
+	ocamlfind $(OCAMLC) -o dbtest.bc $(OCAMLFLAGS) $(ALLOBJS.bc) dbtest.cmo
 
 dbtest: $(LIBS) $(ALLOBJS) dbtest.cmx
-	$(OCAMLOPT) -o dbtest $(OCAMLOPTFLAGS) $(ALLOBJS) dbtest.cmx
+	ocamlfind $(OCAMLOPT) -o dbtest $(OCAMLOPTFLAGS) $(ALLOBJS) dbtest.cmx
 
 tester: $(LIBS) $(ALLOBJS) tester.cmo
-	$(OCAMLC) -o tester $(OCAMLFLAGS) $(ALLOBJS) tester.cmo
+	ocamlfind $(OCAMLC) -o tester $(OCAMLFLAGS) $(ALLOBJS) tester.cmo
 
 dumbloop: $(LIBS) $(ALLOBJS) dumbloop.cmo
-	$(OCAMLC) -o dumbloop $(OCAMLFLAGS) $(ALLOBJS) dumbloop.cmo
+	ocamlfind $(OCAMLC) -o dumbloop $(OCAMLFLAGS) $(ALLOBJS) dumbloop.cmo
 
 scan: $(OBJS) cryptokit dblib scan.ml
-	$(OCAMLC) -o scan $(OCAMLFLAGS) $(OBJS) scan.ml
+	ocamlfind $(OCAMLC) -o scan $(OCAMLFLAGS) $(OBJS) scan.ml
 
 query: $(LIBS) $(ALLOBJS) query.cmo
-	$(OCAMLC) -o query $(OCAMLFLAGS) $(ALLOBJS) query.cmo
+	ocamlfind $(OCAMLC) -o query $(OCAMLFLAGS) $(ALLOBJS) query.cmo
 
 printids: $(OBJS:.cmo=.cmx) cryptokit printids.ml
-	$(OCAMLOPT) -o printids $(OCAMLOPTFLAGS) $(OBJS:.cmo=.cmx) printids.ml
+	ocamlfind $(OCAMLOPT) -o printids $(OCAMLOPTFLAGS) \
+	$(OBJS:.cmo=.cmx) printids.ml
 
 printids.bc: $(OBJS) cryptokit printids.ml
-	$(OCAMLC) -o printids $(OCAMLFLAGS) $(OBJS) printids.ml
+	ocamlfind $(OCAMLC) -o printids $(OCAMLFLAGS) $(OBJS) printids.ml
 
 krecode: $(ALLOBJS.opt) $(LIBS) recode.ml
-	$(OCAMLOPT) -o krecode $(OCAMLOPTFLAGS) $(ALLOBJS.opt) recode.ml
+	ocamlfind $(OCAMLOPT) -o krecode $(OCAMLOPTFLAGS) $(ALLOBJS.opt) recode.ml
 
 rcaml: $(LIBS.bc) $(ALLOBJS.bc)
 	ocamlmktop -o rcaml -custom $(CAMLLIBS) $(CAMLINCLUDE) \
@@ -365,7 +368,7 @@ rcaml: $(LIBS.bc) $(ALLOBJS.bc)
 .SUFFIXES: .mli .ml .cmo .cmi .cmx
 
 .ml.o:
-	$(OCAMLOPT) -output-obj $(OCAMLOPTFLAGS) $<
+	ocamlfind $(OCAMLOPT) -output-obj $(OCAMLOPTFLAGS) $<
 
 .cpp.o:
 	$(CXX) $(CXXFLAGS) -c $<
@@ -377,13 +380,13 @@ rcaml: $(LIBS.bc) $(ALLOBJS.bc)
 	$(CC) $(CFLAGS) /c $<
 
 .ml.cmo:
-	$(OCAMLC) $(OCAMLFLAGS) -c $<
+	ocamlfind $(OCAMLC) $(OCAMLFLAGS) -c $<
 
 .mli.cmi:
-	$(OCAMLC) $(OCAMLFLAGS) -c $<
+	ocamlfind $(OCAMLC) $(OCAMLFLAGS) -c $<
 
 .ml.cmx:
-	$(OCAMLOPT) $(OCAMLOPTFLAGS) -c $<
+	ocamlfind $(OCAMLOPT) $(OCAMLOPTFLAGS) -c $<
 
 
 # Clean up
@@ -411,7 +414,7 @@ distclean: cleanall
 # Dependencies
 
 dep:
-	$(OCAMLDEP) $(INCLUDES) *.mli *.ml > .depend
+	$(OCAMLDEP) $(INCLUDES) -package core *.mli *.ml > .depend
 
 -include .depend
 

@@ -1,7 +1,10 @@
+open Core.Std
+
 val connect :
   'a PrefixTree.tree ->
   filters:string list ->
-  partner:UnixLabels.addr_info -> ZZp.Set.t * UnixLabels.sockaddr
+  partner:Unix.addr_info -> ZZp.Set.t * Unix.sockaddr
+
 val handle_connection :
   'a PrefixTree.tree ->
   filters:string list ->

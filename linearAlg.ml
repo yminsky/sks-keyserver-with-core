@@ -20,10 +20,7 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
-module Unix=UnixLabels
-open Printf
+open Core.Std
 open ZZp.Infix
 
 exception Bug of string
@@ -38,7 +35,7 @@ let rec riter ~f low high =
 
 let rec rfind ~f low high =
   if low >= high then raise Not_found
-  else if f(low) then low
+  else if f low then low
   else rfind ~f (low + 1) high
 
 

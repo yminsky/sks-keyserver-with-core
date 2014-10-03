@@ -20,7 +20,15 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-type zz
+open Core.Std
+
+type t
+include Stringable with type t := t
+include Comparable with type t := t
+include Sexpable   with type t := t
+
+
+type zz = t
 type zzref
 type mut_array
 val order : Number.z ref
@@ -56,8 +64,6 @@ val lt : zz -> zz -> bool
 val gt : zz -> zz -> bool
 val eq : zz -> zz -> bool
 val neq : zz -> zz -> bool
-val to_string : zz -> string
-val of_string : string -> zz
 val print : zz -> unit
 val points : int -> zz array
 val svalues : int -> mut_array
@@ -87,40 +93,10 @@ val mut_array_of_array : zz array -> mut_array
 val to_string_array : zz -> string array
 val rand : (unit -> int) -> zz
 
-(** Set specialized to ZZp.zz *)
-module Set :
-  sig
-    type elt = zz
-    type t
-    val empty : t
-    val is_empty : t -> bool
-    val mem : elt -> t -> bool
-    val add : elt -> t -> t
-    val singleton : elt -> t
-    val remove : elt -> t -> t
-    val union : t -> t -> t
-    val inter : t -> t -> t
-    val diff : t -> t -> t
-    val compare : t -> t -> int
-    val equal : t -> t -> bool
-    val subset : t -> t -> bool
-    val iter : f:(elt -> unit) -> t -> unit
-    val fold : f:(elt -> 'a -> 'a) -> t -> init:'a -> 'a
-    val for_all : f:(elt -> bool) -> t -> bool
-    val exists : f:(elt -> bool) -> t -> bool
-    val filter : f:(elt -> bool) -> t -> t
-    val partition : f:(elt -> bool) -> t -> t * t
-    val cardinal : t -> int
-    val elements : t -> elt list
-    val min_elt : t -> elt
-    val max_elt : t -> elt
-    val choose : t -> elt
-    val split : elt -> t -> t * bool * t
-  end
-val zset_of_list : zz list -> Set.t
 val canonical_of_number : Number.z -> zz
 val of_number : Number.z -> zz
 val to_number : zz -> Number.z
+
 module Infix :
   sig
     val ( +: ) : zz -> zz -> zz

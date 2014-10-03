@@ -20,18 +20,10 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
-module Unix=UnixLabels
+open Core.Std
 open Common
-
-open Printf
 open ReconMessages
-
-module Set = PSet.Set
-module Map = PMap.Map
 module PTree = PrefixTree
-(* module ZZp = RMisc.ZZp *)
 
 exception Bug of string
 
@@ -55,17 +47,9 @@ let get_flushcount () = !flushcount
 (***************************************************************)
 
 type 'a bottomQ_entry = FlushEnded | Bottom of 'a
-type reconbound = { num_completed: int;
-                    verified_partitions: Bitstring.t Set.t;
+type reconbound = { num_completed: int
+                  ; verified_partitions: Bitstring.t Set.Poly.t
                   }
-
-
-(*
-let reconbound_exceeded rb =
-  !Settings.mbar * (Set.cardinal rb.verified_partitions)
-  + rb.num_recovered
-  > Settings.max_recover
-*)
 
 exception Continue
 
@@ -73,67 +57,69 @@ exception Continue
 let send_request cout tree ~bottomQ (node,key) =
   let request =
     if PTree.is_leaf node ||
-      PTree.num_elements tree node <
-      !Settings.recon_thresh_mult * !Settings.mbar
-    then ReconRqst_Full
-      { rf_prefix = key;
-        rf_elements = PTree.elements tree node;
-      }
-    else ReconRqst_Poly
-      { rp_prefix = key;
-        rp_size = PTree.size node;
-        rp_samples = PTree.svalues node;
-      }
+       PTree.num_elements tree node <
+       !Settings.recon_thresh_mult * !Settings.mbar
+    then
+      ReconRqst_Full
+        { rf_prefix = key;
+          rf_elements = PTree.elements tree node;
+        }
+    else
+      ReconRqst_Poly
+        { rp_prefix = key;
+          rp_size = PTree.size node;
+          rp_samples = PTree.svalues node;
+        }
   in
   marshal_noflush cout request;
-  Queue.push (Bottom (node,key)) bottomQ
+  Queue.enqueue bottomQ (Bottom (node,key)) 
 
 (** Handle reply message and update [requestQ] appropriately *)
 let handle_reply cout tree ~requestQ reply (node,key) setref =
   match reply.msg with
-    | SyncFail ->
-        if PTree.is_leaf node then
-           raise (Bug ("Unexpected error.  Syncfail received" ^
-                       "at leaf node"));
-        let children = PTree.child_keys tree key in
-        let nodes =
-          List.map
-             ~f:(fun key -> try PTree.get_node_key tree key
-                with Not_found ->
-                   raise (Bug ("Client.read: PTree.get_node_key " ^
-                               "should not fail")))
-             children in
-        (* update requestQ with requests corresponding to
-           children of present node *)
-        List.iter  ~f:(fun req -> Queue.push req requestQ)
-          (List.combine nodes children)
+  | SyncFail ->
+    if PTree.is_leaf node then
+      raise (Bug ("Unexpected error.  Syncfail received" ^
+                  "at leaf node"));
+    let children = PTree.child_keys tree key in
+    let nodes =
+      List.map
+        ~f:(fun key -> try PTree.get_node_key tree key
+             with Not_found ->
+               raise (Bug ("Client.read: PTree.get_node_key " ^
+                           "should not fail")))
+        children in
+    (* update requestQ with requests corresponding to
+       children of present node *)
+    List.iter ~f:(fun req -> Queue.enqueue requestQ req)
+      (List.zip_exn nodes children)
 
-    | Elements elements -> setref := (ZZp.Set.union !setref elements)
+  | Elements elements -> setref := (ZZp.Set.union !setref elements)
 
-    (* required for case where reconciliation terminates for due to the end
-       of the prefix tree *)
-    | FullElements elements ->
-        let local = PTree.get_zzp_elements tree node in
-        let localdiff = ZZp.Set.diff local elements in
-        let remotediff = ZZp.Set.diff elements local in
-        marshal_noflush cout (Elements localdiff);
-        setref := ZZp.Set.union !setref remotediff
+  (* required for case where reconciliation terminates for due to the end
+     of the prefix tree *)
+  | FullElements elements ->
+    let local = PTree.get_zzp_elements tree node in
+    let localdiff = ZZp.Set.diff local elements in
+    let remotediff = ZZp.Set.diff elements local in
+    marshal_noflush cout (Elements localdiff);
+    setref := ZZp.Set.union !setref remotediff
 
-    | _ -> failwith ( "Unexpected message: " ^
-                       msg_to_string reply.msg )
+  | _ -> failwith ( "Unexpected message: " ^
+                    msg_to_string reply.msg )
 
 
 (* after a timeout, give an extra 10 seconds to actually extract the data built up so far *)
 let recover_timeout = 10
 
 (** manages reconciliation connection, determining when messages are sent and
-  received on the channel. *)
+    received on the channel. *)
 let connection_manager cin cout tree initial_request =
   let set = ref ZZp.Set.empty in
   let requestQ = Queue.create ()
   and bottomQ = Queue.create () in
 
-  Queue.push initial_request requestQ;
+  Queue.enqueue requestQ initial_request;
 
   (* state variables *)
   let flushing = ref false (* whether a flush has been sent and not
@@ -143,7 +129,7 @@ let connection_manager cin cout tree initial_request =
   let flush_queue () =
     marshal_noflush cout Flush;
     cout#flush;
-    Queue.push FlushEnded bottomQ;
+    Queue.enqueue bottomQ FlushEnded;
     flushing := true
   in
 
@@ -151,52 +137,50 @@ let connection_manager cin cout tree initial_request =
   try
     (* Once both queues are empty, the reconciliation is done *)
     while not (Queue.is_empty requestQ && Queue.is_empty bottomQ) do
-      match (try Some (Queue.top bottomQ) with Queue.Empty -> None) with
+      match Queue.peek bottomQ with
+      | None ->
+        (* following pop is safe, because requestQ can't be empty *)
+        let (node,key) = Queue.dequeue_exn requestQ in
+        send_request cout tree ~bottomQ (node,key)
+      | Some FlushEnded ->
+        ignore (Queue.dequeue_exn bottomQ);
+        flushing := false
+      | Some (Bottom (node,key)) ->
+        plerror 10 "Queue length: %d" (Queue.length bottomQ);
+        match try_unmarshal cin with
+        | Some reply ->
+          ignore (Queue.dequeue_exn bottomQ);
+          handle_reply cout tree ~requestQ reply (node,key) set
         | None ->
-            (* following pop is safe, because requestQ can't be empty *)
-            let (node,key) = Queue.pop requestQ in
+          match (
+            if Queue.length bottomQ > !Settings.max_outstanding_recon_requests
+            then None
+            else Queue.dequeue requestQ
+          )
+          with
+          | None ->
+            if not !flushing then flush_queue ()
+            else (
+              ignore (Queue.dequeue_exn bottomQ);
+              let reply = unmarshal cin in
+              handle_reply cout tree ~requestQ reply (node,key) set
+            )
+          | Some (node,key) ->
             send_request cout tree ~bottomQ (node,key)
-        | Some FlushEnded ->
-            ignore (Queue.pop bottomQ);
-            flushing := false
-        | Some (Bottom (node,key)) ->
-            plerror 10 "Queue length: %d" (Queue.length bottomQ);
-            match try_unmarshal cin with
-              | Some reply ->
-                  ignore (Queue.pop bottomQ);
-                  handle_reply cout tree ~requestQ reply (node,key) set
-              | None ->
-                  match (
-                    if Queue.length bottomQ > !Settings.max_outstanding_recon_requests
-                    then None
-                    else
-                      try Some (Queue.pop requestQ)
-                      with Queue.Empty -> None
-                  )
-                  with
-                    | None ->
-                        if not !flushing then flush_queue ()
-                        else (
-                          ignore (Queue.pop bottomQ);
-                          let reply = unmarshal cin in
-                          handle_reply cout tree ~requestQ reply (node,key) set
-                        )
-                    | Some (node,key) ->
-                        send_request cout tree ~bottomQ (node,key)
     done;
     marshal cout Done;
     !set
   with
-    | Eventloop.SigAlarm ->
-        ignore (Unix.alarm recover_timeout);
-        plerror 2 "%s" ("Reconciliation failed due to timeout.  " ^
-                        "Returning elements returned so far");
-        !set
-    | End_of_file | Sys_error _ as e ->
-        ignore (Unix.alarm recover_timeout);
-        eplerror 2 e "%s" ("Reconciliation failed.  " ^
-                           "Returning elements returned so far");
-        !set
+  | Eventloop.SigAlarm ->
+    ignore (Unix.alarm recover_timeout);
+    plerror 2 "%s" ("Reconciliation failed due to timeout.  " ^
+                    "Returning elements returned so far");
+    !set
+  | End_of_file | Sys_error _ as e ->
+    ignore (Unix.alarm recover_timeout);
+    eplerror 2 e "%s" ("Reconciliation failed.  " ^
+                       "Returning elements returned so far");
+    !set
 
 
 (* Main reconciliation code *)

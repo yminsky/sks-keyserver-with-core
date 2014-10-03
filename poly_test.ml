@@ -20,11 +20,10 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
+module Poly_ = Poly
+open Core.Std
+module Poly = Poly_
 open Common
-open StdLabels
-open MoreLabels
-module Unix = UnixLabels
-open Printf
 open ZZp.Infix
 
 

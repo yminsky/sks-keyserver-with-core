@@ -20,10 +20,8 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
+open Core.Std
 open Big_int
-open StdLabels
-open MoreLabels
-open Printf
 open Number
 open Number.Infix
 open Common
