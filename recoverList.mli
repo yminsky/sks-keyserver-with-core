@@ -1,4 +1,6 @@
-type recover_element = string list * UnixLabels.sockaddr
+open Core.Std
+
+type recover_element = string list * Unix.sockaddr
 val hash_bundle_size : int
 val recover_list : recover_element Queue.t
 val gossip_disabled_var : bool ref

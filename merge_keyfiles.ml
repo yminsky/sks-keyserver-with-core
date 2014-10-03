@@ -23,12 +23,9 @@
 
 module F(M:sig end) =
 struct
-  open StdLabels
-  open MoreLabels
-  open Printf
+  open Core.Std
   open Arg
   open Common
-  module Set = PSet.Set
   open Packet
 
   let settings = {
@@ -81,7 +78,7 @@ struct
   let rec get_key stream =
     try (!stream).getkey ()
     with Not_found | End_of_file ->
-      close_in (!stream).current;
+      In_channel.close (!stream).current;
       stream := create_keydump_stream ((!stream).ctr + 1) (!stream).fnames;
       get_key stream
 
@@ -108,7 +105,7 @@ struct
   let run () =
     set_logfile "merge";
         perror "Running SKS %s%s" Common.version Common.version_suffix;
-    if not (Sys.file_exists (Lazy.force Settings.dbdir)) then (
+    if not (Sys.file_exists_exn (Lazy.force Settings.dbdir)) then (
       printf "No existing KeyDB database.  Exiting.\n";
       exit (-1)
     );

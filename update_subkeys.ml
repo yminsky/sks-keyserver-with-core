@@ -20,14 +20,9 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
-open Printf
+open Core.Std
 open Arg
 open Common
-module Set = PSet.Set
-module Map = PMap.Map
-module Unix = UnixLabels
 open Packet
 open Bdb
 

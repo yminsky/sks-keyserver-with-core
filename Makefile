@@ -57,7 +57,7 @@ CAMLINCLUDE= -I lib -I bdb
 COMMONCAMLFLAGS=$(CAMLINCLUDE) $(OCAMLLIB) -ccopt -Lbdb -dtypes $(WARNERR) \
 		-thread -package core
 OCAMLDEP=ocamlfind ocamldep $(CAMLP4) -package core
-CAMLLIBS=unix.cma str.cma bdb.cma nums.cma bigarray.cma cryptokit.cma
+CAMLLIBS=str.cma bdb.cma nums.cma cryptokit.cma
 OCAMLFLAGS=$(COMMONCAMLFLAGS) -g $(CAMLLIBS)
 OCAMLOPTFLAGS=$(COMMONCAMLFLAGS) -inline 40 $(CAMLLIBS:.cma=.cmxa)
 
@@ -68,13 +68,11 @@ ALL.bc=$(EXE:=.bc) sks.8.gz
 all: $(ALL)
 all.bc: $(ALL.bc)
 
-COBJS=crc.o
-
 MOBJS.bc= utils.cmo heap.cmo mTimer.cmo
 
 MOBJS=$(MOBJS.bc:.cmo=.cmx)
 
-ROBJS.bc= settings.cmo pstyle.cmo getfileopts.cmo \
+ROBJS.bc= settings.cmo pstyle.cmo getfileopts.cmo  version_tuple.cmo\
 	common.cmo channel.cmo eventloop.cmo ehandlers.cmo \
 	bitstring.cmo meteredChannel.cmo \
 	number.cmo prime.cmo zZp.cmo rMisc.cmo \
@@ -163,34 +161,45 @@ sks.8: sks.pod
 	pod2man -c "SKS OpenPGP Key server" --section 8 -r 0.1 -name sks sks.pod sks.8
 
 spider: $(LIBS) $(ALLOBJS) spider.cmx
-	ocamlfind $(OCAMLOPT) -o spider $(OCAMLOPTFLAGS) $(ALLOBJS) spider.cmx
+	ocamlfind $(OCAMLOPT) -o spider $(OCAMLOPTFLAGS) $(ALLOBJS) spider.cmx \
+	-linkpkg
 
 spider.bc: $(LIBS.bc) $(ALLOBJS.bc) spider.cmo
-	ocamlfind $(OCAMLC) -o spider.bc $(OCAMLFLAGS) $(ALLOBJS.bc) spider.cmo
+	ocamlfind $(OCAMLC) -o spider.bc $(OCAMLFLAGS) $(ALLOBJS.bc) spider.cmo \
+	-linkpkg
 
 sksclient: $(LIBS) $(ALLOBJS) sksclient.cmx
-	ocamlfind $(OCAMLOPT) -o sksclient $(OCAMLOPTFLAGS) $(ALLOBJS) sksclient.cmx
+	ocamlfind $(OCAMLOPT) -o sksclient $(OCAMLOPTFLAGS) $(ALLOBJS) \
+	sksclient.cmx \
+	-linkpkg
 
 sksclient.bc: $(LIBS.bc) $(ALLOBJS.bc) sksclient.cmo
-	ocamlfind $(OCAMLC) -o sksclient.bc $(OCAMLFLAGS) $(ALLOBJS.bc) sksclient.cmo
+	ocamlfind $(OCAMLC) -o sksclient.bc $(OCAMLFLAGS) $(ALLOBJS.bc) 
+	sksclient.cmo \
+	-linkpkg
 
 sks: $(LIBS) $(ALLOBJS) sks.cmx
-	ocamlfind $(OCAMLOPT) -o sks $(OCAMLOPTFLAGS) $(ALLOBJS) sks.cmx
+	ocamlfind $(OCAMLOPT) -o sks $(OCAMLOPTFLAGS) $(ALLOBJS) sks.cmx \
+	-linkpkg
 
 sks.bc: $(LIBS.bc) $(ALLOBJS.bc) sks.cmo
-	ocamlfind $(OCAMLC) -o sks.bc $(OCAMLFLAGS) $(ALLOBJS.bc) sks.cmo
+	ocamlfind $(OCAMLC) -o sks.bc $(OCAMLFLAGS) $(ALLOBJS.bc) sks.cmo \
+	-linkpkg
 
 nbtest.bc: $(LIBS.bc) $(ALLOBJS.bc) nbtest.cmo
-	ocamlfind $(OCAMLC) -o nbtest.bc $(OCAMLFLAGS) $(ALLOBJS.bc) nbtest.cmo
+	ocamlfind $(OCAMLC) -o nbtest.bc $(OCAMLFLAGS) $(ALLOBJS.bc) nbtest.cmo \
+	-linkpkg
 
 ptest: $(LIBS) $(ALLOBJS) ptest.cmx
 	ocamlfind $(OCAMLOPT) -o ptest $(OCAMLOPTFLAGS) $(ALLOBJS) \
-	ptest.cmx
+	ptest.cmx \
+	-linkpkg
 
 ptree_consistency_test: $(LIBS) $(ALLOBJS) reconPTreeDb.cmx \
 		ptree_consistency_test.cmx
 	ocamlfind $(OCAMLOPT) -o ptree_consistency_test $(OCAMLOPTFLAGS) $(ALLOBJS) \
-	reconPTreeDb.cmx ptree_consistency_test.cmx
+	reconPTreeDb.cmx ptree_consistency_test.cmx \
+	-linkpkg
 
 ptree_consistency_test.bc: $(LIBS.bc) $(ALLOBJS.bc) reconPTreeDb.cmo \
 		ptree_consistency_test.cmo
@@ -200,49 +209,59 @@ ptree_consistency_test.bc: $(LIBS.bc) $(ALLOBJS.bc) reconPTreeDb.cmo \
 ptree_db_test: $(LIBS) $(ALLOBJS) reconPTreeDb.cmx \
 		ptree_db_test.cmx
 	ocamlfind $(OCAMLOPT) -o ptree_db_test $(OCAMLOPTFLAGS) $(ALLOBJS) \
-	reconPTreeDb.cmx ptree_db_test.cmx
+	reconPTreeDb.cmx ptree_db_test.cmx \
+	-linkpkg
 
 ptree_db_test.bc: $(LIBS.bc) $(ALLOBJS.bc) reconPTreeDb.cmo \
 		ptree_db_test.cmo
 	ocamlfind $(OCAMLC) -o ptree_db_test.bc $(OCAMLFLAGS) $(ALLOBJS.bc) \
-	reconPTreeDb.cmo ptree_db_test.cmo
+	reconPTreeDb.cmo ptree_db_test.cmo \
+	-linkpkg
 
 sks_do.bc: $(LIBS.bc) $(ALLOBJS.bc) sks_do.cmo
-	ocamlfind $(OCAMLC) -o sks_do.bc $(OCAMLFLAGS) $(ALLOBJS.bc) sks_do.cmo
+	ocamlfind $(OCAMLC) -o sks_do.bc $(OCAMLFLAGS) $(ALLOBJS.bc) sks_do.cmo \
+	-linkpkg
 
 sks_do: $(LIBS) $(ALLOBJS) sks_do.cmx
-	ocamlfind $(OCAMLOPT) -o sks_do $(OCAMLOPTFLAGS) $(ALLOBJS) sks_do.cmx
-
+	ocamlfind $(OCAMLOPT) -o sks_do $(OCAMLOPTFLAGS) $(ALLOBJS) sks_do.cmx \
+	-linkpkg
 
 sks_add_mail.bc: add_mail.cmo
-	ocamlfind $(OCAMLC) -o sks_add_mail.bc -g unix.cma \
-	add_mail.cmo
+	ocamlfind $(OCAMLC) -o sks_add_mail.bc -g \
+	add_mail.cmo -linkpkg -thread -package core
 
 sks_add_mail: $(LIBS) add_mail.cmx
-	ocamlfind $(OCAMLOPT) -o sks_add_mail unix.cmxa add_mail.cmx
+	ocamlfind $(OCAMLOPT) -o sks_add_mail \
+	add_mail.cmx -linkpkg -thread -package core
 
 ocamldoc.out: $(ALLOBJS) $(EXEOBJS)
 	ocamldoc -hide Pervasives,UnixLabels,MoreLabels \
 	-dot $(CAMLP4O) -d doc -I lib -I bdb *.mli *.ml
 
 sks_logdump.bc: $(LIBS.bc) $(ALLOBJS.bc) logdump.cmo
-	ocamlfind $(OCAMLC) -o sks_logdump.bc $(OCAMLFLAGS) $(ALLOBJS.bc) logdump.cmo
+	ocamlfind $(OCAMLC) -o sks_logdump.bc $(OCAMLFLAGS) $(ALLOBJS.bc) \
+	logdump.cmo \
+	-linkpkg
 
 sks_logdump: $(LIBS) $(ALLOBJS) logdump.cmx
 	ocamlfind $(OCAMLOPT) -o sks_logdump $(OCAMLOPTFLAGS) $(ALLOBJS) \
-	logdump.cmx
+	logdump.cmx \
+	-linkpkg
 
 bugscript: $(LIBS) $(ALLOBJS) reconPTreeDb.cmx bugscript.cmx
 	ocamlfind $(OCAMLOPT) -o bugscript $(OCAMLOPTFLAGS) $(ALLOBJS) \
-	reconPTreeDb.cmx bugscript.cmx
+	reconPTreeDb.cmx bugscript.cmx \
+	-linkpkg
 
 bugscript.bc: $(LIBS.bc) $(ALLOBJS.bc) reconPTreeDb.cmo bugscript.cmo
 	ocamlfind $(OCAMLC) -o bugscript.bc $(OCAMLFLAGS) $(ALLOBJS.bc) \
-	reconPTreeDb.cmo bugscript.cmo
+	reconPTreeDb.cmo bugscript.cmo \
+	-linkpkg
 
 ptree_replay: $(LIBS) $(ALLOBJS) reconPTreeDb.cmx ptree_replay.cmx
 	ocamlfind $(OCAMLOPT) -o ptree_replay $(OCAMLOPTFLAGS) $(ALLOBJS) \
-	reconPTreeDb.cmx ptree_replay.cmx
+	reconPTreeDb.cmx ptree_replay.cmx \
+	-linkpkg
 
 modules.dot: ocamldoc.out
 	./recolor.py < ocamldoc.out > modules.dot

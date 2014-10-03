@@ -1,11 +1,9 @@
-val last : 'a list -> 'a
 type histogram_entry = {
   upper : float;
   lower : float;
   mutable num_adds : int;
   mutable num_dels : int;
 }
-external get_tzname : unit -> string * string = "caml_get_tzname"
 val time_to_tz_string : float -> string
 val time_to_string : float -> string
 val time_to_date : float -> string

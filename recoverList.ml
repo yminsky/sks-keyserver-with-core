@@ -22,9 +22,7 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
-open Printf
+open Core.Std
 open Common
 
 (** Queue of bundles of hashes to be recovered*)
@@ -88,15 +86,15 @@ let log_diffs log_fname hashes =
       let file = open_out log_fname in
       protect ~f:(fun () -> List.iter hashes
           ~f:(fun h -> fprintf file "%s\n" (KeyHash.hexify h)))
-        ~finally:(fun () -> close_out file)
+        ~finally:(fun () -> Out_channel.close file)
     end
 
 let update_recover_list results partner_http_addr  =
   let hashes = hashconvert results in
   let bundles = size_split hashes hash_bundle_size in
   List.iter bundles ~f:(fun bundle ->
-                          Queue.add (bundle,partner_http_addr)
-                          recover_list);
+    Queue.enqueue recover_list (bundle,partner_http_addr)
+  );
   if not (Queue.is_empty recover_list) then disable_gossip ()
 
 

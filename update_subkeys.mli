@@ -147,8 +147,6 @@ module Keydb :
     val get_num_keys : unit -> int
   end
 type update = { keyid : string; hash : string; }
-val ( |= ) : ('a, 'b) PMap.Map.t -> 'a -> 'b
-val ( |< ) : ('a, 'b) PMap.Map.t -> 'a * 'b -> ('a, 'b) PMap.Map.t
 val at_once : int
 val subkeyids_from_key : Packet.packet list -> string list
 val sort_dedup : 'a list -> 'a list

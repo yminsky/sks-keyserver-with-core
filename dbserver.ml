@@ -23,17 +23,12 @@
 
 module F(M:sig end) =
 struct
-  open StdLabels
-  open MoreLabels
-  open Printf
+  open Core.Std
   open Common
   open Packet
-  module Unix = UnixLabels
-  open Unix
   open DbMessages
   open Request
   open Pstyle
-  open Sys
 
   let () =
     set_logfile "db";
@@ -82,7 +77,7 @@ struct
       failwith "Could not listen on any address."
 
   let () =
-    if Sys.file_exists db_command_name
+    if Sys.file_exists_exn db_command_name
     then Unix.unlink db_command_name
   let comsock = Eventloop.create_sock db_command_addr
 
@@ -117,7 +112,7 @@ struct
       List.fold_left ~init:[] keys
         ~f:(fun list key ->
               try
-                let ki = ParsePGP.parse_pubkey_info (List.hd key) in
+                let ki = ParsePGP.parse_pubkey_info (List.hd_exn key) in
                 (ki.pk_ctime,key)::list
               with
                 | Sys.Break as e -> raise e
@@ -160,15 +155,17 @@ struct
           List.filter keys
           ~f:(fun key -> keyid = (Fingerprint.from_key key).Fingerprint.keyid ||
           (** Return keys i& subkeys with matching long keyID *)
-             let (mainkeyid,subkeyids) = Fingerprint.keyids_from_key ~short:false key in
-             List.exists (fun x -> x = keyid) subkeyids)
+             let (mainkeyid,subkeyids) = 
+               Fingerprint.keyids_from_key ~short:false key
+             in
+             List.exists ~f:(fun x -> x = keyid) subkeyids)
 
       | 20 -> (* 160-bit v. 4 fingerprint *)
           List.filter keys
           ~f:(fun key -> keyid = (Fingerprint.from_key key).Fingerprint.fp ||
           (** Return keys & subkeys with matching fingerprints *)
               let (mainkeyfp,subkeyfps) = Fingerprint.fps_from_key key in
-              List.exists (fun x -> x = keyid) subkeyfps)
+              List.exists ~f:(fun x -> x = keyid) subkeyfps)
 
       | 16 -> (* 128-bit v3 fingerprint.  Not supported *)
           failwith "128-bit v3 fingerprints not implemented"
@@ -179,7 +176,7 @@ struct
   (** returns list of keys readied for presentation *)
   let clean_keys request keys =
     if request.clean
-    then Utils.filter_map ~f:Fixkey.presentation_filter keys
+    then List.filter_map ~f:Fixkey.presentation_filter keys
     else keys
 
   (** return uid given keyid *)
@@ -213,7 +210,7 @@ struct
                     (String.sub ~pos:2 ~len:keyid_string_length first)
                 with                e ->
                   let exn_str = sprintf "Unable to parse hash string: %s"
-                    (Printexc.to_string e) in
+                    (Exn.to_string e) in
                   raise (Wserver.Misc_error exn_str)
               in
               let keys = (try get_keys_by_keyid keyid
@@ -251,7 +248,7 @@ struct
           ("text/html; charset=UTF-8", -1, !last_stat_page)
       | Get ->
           plerror 4 "/pks/lookup: Get request (%s)"
-            (String.concat " " request.search);
+            (String.concat ~sep:" " request.search);
           let keys = lookup_keys request.search in
           let keys = clean_keys request keys in
           let count = List.length keys in
@@ -271,7 +268,7 @@ struct
                ~body:(sprintf "\r\n<pre>\r\n%s\r\n</pre>\r\n" aakeys)
             )
       | HGet ->
-          let hash_str = List.hd request.search in
+          let hash_str = List.hd_exn request.search in
           plerror 4 "/pks/lookup: Hash search: %s" hash_str;
           let hash = KeyHash.dehexify hash_str in
           flush Pervasives.stdout;
@@ -302,7 +299,7 @@ struct
       | Index | VIndex ->
           (* VIndex requests are treated indentically to index requests *)
           plerror 4 "/pks/lookup: Index request: (%s)"
-            (String.concat " " request.search);
+            (String.concat ~sep:" " request.search);
           let keys = lookup_keys request.search in
           let count = List.length keys in
           let keys = truncate request.limit keys in
@@ -317,14 +314,14 @@ struct
               try
                 let output =
                   if request.kind = VIndex then
-                    List.map2 keys hashes
+                    List.map2_exn keys hashes
                       ~f:(Index.key_to_lines_verbose
                             ~get_uids:(get_uids request) request)
                   else
-                    List.map2 keys hashes
+                    List.map2_exn keys hashes
                       ~f:(Index.key_to_lines_normal request)
                 in
-                let output = List.flatten output in
+                let output = List.concat output in
                 let pre = HtmlTemplates.preformat_list
                             (Index.keyinfo_header request :: output)
                 in
@@ -361,8 +358,8 @@ struct
         Not_found -> (s,[])
 
   let get_extension s =
-    let pos = String.rindex s '.' in
-    s </> (pos,0)
+    let pos = String.rindex_exn s '.' in
+    String.slice s pos 0
 
   let bool_to_string b = if b then "true" else "false"
   let print_request cout r =
@@ -374,7 +371,7 @@ struct
     fprintf cout "   fingerprint: %s\n" (bool_to_string r.fingerprint);
     fprintf cout "   exact: %s\n" (bool_to_string r.exact);
     fprintf cout "   search: %s\n"
-      (MList.to_string ~f:(fun x -> x) r.search)
+      (r.search |> List.sexp_of_t String.sexp_of_t |> Sexp.to_string)
 
   let get_keystrings_from_hashes hashes =
     let rec loop hashes keystrings = match hashes with
@@ -392,15 +389,15 @@ struct
     loop hashes []
 
   let read_file ?(binary=false) fname =
-    if not (Sys.file_exists fname) then raise (Wserver.Page_not_found fname);
+    if not (Sys.file_exists_exn fname) then raise (Wserver.Page_not_found fname);
     let f = (if binary then open_in_bin else open_in) fname in
     protect ~f:(fun () ->
-                  let length = in_channel_length f in
-                  let buf = String.create length in
+                  let length = In_channel.length f |> Int64.to_int_exn in
+                  let buf = Bytes.create length in
                   really_input f buf 0 length;
                   buf
                )
-      ~finally:(fun () -> close_in f)
+      ~finally:(fun () -> In_channel.close f)
 
 
   let is_safe char =
@@ -452,7 +449,7 @@ struct
       none of them exists.  *)
   let index_page_filename =
     let found_files = List.filter index_files
-      ~f:(fun x -> Sys.file_exists (convert_web_fname x))
+      ~f:(fun x -> Sys.file_exists_exn (convert_web_fname x))
     in
     match found_files with
     | [] -> "index.html"
@@ -465,7 +462,7 @@ struct
     in
     match Str.split period index_page_filename with
     | _ :: ext :: _ ->
-      (try List.assoc ("." ^ ext) supported_extensions
+      (try List.Assoc.find_exn supported_extensions ("." ^ ext)
        with Not_found -> err ())
     | _ -> err ()
 
@@ -492,7 +489,7 @@ struct
               (try
                  let extension = get_extension base in
                  let mimetype =
-                   try List.assoc extension supported_extensions
+                   try List.Assoc.find_exn supported_extensions extension
                    with Not_found ->
                      raise (Wserver.Misc_error
                               ("internal error: no mimetype " ^
@@ -724,13 +721,11 @@ struct
     sync ();
     checkpoint ()
 
-  let () = Sys.set_signal Sys.sigusr1
-          (Sys.Signal_handle (fun _ -> sync_db_on_sig ()))
-
-  let () = Sys.set_signal Sys.sigusr2
-      (Sys.Signal_handle (fun _ ->
-        Eventloop.add_events Eventloop.heap
-          [Eventloop.Event(0.0, Eventloop.Callback calculate_stats_page)]))
+  let () = 
+    Signal.Expert.handle Signal.usr1 (fun _ -> sync_db_on_sig ());
+    Signal.Expert.handle Signal.usr2 (fun _ -> 
+      Eventloop.add_events Eventloop.heap
+        [Eventloop.Event(0.0, Eventloop.Callback calculate_stats_page)])
 
   (***********************************************************************)
 

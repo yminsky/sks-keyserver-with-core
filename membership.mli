@@ -21,6 +21,8 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
+open Core.Std
+
 (** Reset the last time the mtime was read to zero, to force the    *)
 (** membership file to be reloaded from disk                        *)
 val reset_membership_time : unit -> unit
@@ -30,11 +32,11 @@ val get_names : unit -> string array
 
 (** Picks single gossip partner from list of possible partners, and *)
 (** returns list of all known addresses for that host               *)
-val choose : unit -> UnixLabels.addr_info list
+val choose : unit -> Unix.addr_info list
 
 (** Returns true iff the address in question belongs to one of the  *)
 (** hosts on the gossip membership list.                            *)
-val test : UnixLabels.sockaddr -> bool
+val test : Unix.sockaddr -> bool
 
 (** Returns the list of email addresses for use in PKS-style key    *)
 (** distribution                                                    *)

@@ -20,14 +20,9 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
-open Printf
+open Core.Std
 open Common
 open Packet
-
-module Unix = UnixLabels
-module Map = PMap.Map
 
 open DbMessages
 
@@ -66,7 +61,7 @@ let send_dbmsg_noreply msg =
 
 let is_content_type line =
   try
-    let colonpos = String.index line ':' in
+    let colonpos = String.index_exn line ':' in
     let prefix = String.sub ~pos:0 ~len:colonpos line in
     String.lowercase prefix = "content-type"
   with
@@ -97,7 +92,7 @@ let get_keystrings_via_http addr hashes =
                 let status = input_line cin#inchan in
                 if not (Str.string_match http_status_ok_regexp status 0) then
                   failwith status;
-                let _headers = Wserver.parse_headers Map.empty cin#inchan in
+                let _headers = Wserver.parse_headers String.Map.empty cin#inchan in
                 let keystrings =
                   CMarshal.unmarshal_list ~f:CMarshal.unmarshal_string cin
                 in

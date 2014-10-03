@@ -26,13 +26,9 @@
 
 module F(M:sig end) =
 struct
-  open StdLabels
-  open MoreLabels
-  open Printf
+  open Core.Std
   open Arg
   open Common
-  module Set = PSet.Set
-  module Unix = UnixLabels
   open Packet
 
   let settings = {
@@ -85,7 +81,7 @@ struct
     match (try nextkey ()
            with e ->
              perror "error parsing key in file %d: %s.  Skipping rest of file"
-             fnum (Printexc.to_string e);
+             fnum (Exn.to_string e);
              None
           )
     with
@@ -158,20 +154,21 @@ struct
 
   (***************************************************************)
 
-  let () = Sys.set_signal Sys.sigusr1 Sys.Signal_ignore
-  let () = Sys.set_signal Sys.sigusr2 Sys.Signal_ignore
+  let () = 
+    Signal.Expert.set Signal.usr1 `Ignore;
+    Signal.Expert.set Signal.usr2 `Ignore
 
   (***************************************************************)
   let run () =
     set_logfile "fastbuild";
         perror "Running SKS %s%s" Common.version Common.version_suffix;
 
-    if Sys.file_exists (Lazy.force Settings.dbdir) then (
+    if Sys.file_exists_exn (Lazy.force Settings.dbdir) then (
       perror "KeyDB directory already exists.  Exiting.";
       eprintf "KeyDB directory already exists.  Exiting.\n";
       exit (-1)
     );
-    Unix.mkdir (Lazy.force Settings.dbdir) 0o700;
+    Unix.mkdir (Lazy.force Settings.dbdir) ~perm:0o700;
     Utils.initdbconf !Settings.basedir (Lazy.force Settings.dbdir);
 
     Keydb.open_dbs settings;
