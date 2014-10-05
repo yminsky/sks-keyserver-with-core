@@ -20,10 +20,7 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
-
-module Unix=UnixLabels
+open Core.Std
 
 exception Error of string
 exception LengthError of string
@@ -169,7 +166,7 @@ let copy ba = { ba with a = String.copy ba.a }
 let copy_len ba bitlength =
   let num_bytes = bytelength bitlength in
   let dst = Bytes.create num_bytes in
-  Bytes.blit ~src:ba.a ~src_pos:0
+  BytesLabels.blit ~src:ba.a ~src_pos:0
     ~dst ~dst_pos:0 ~len:(Bytes.length ba.a);
   { a = dst; bitlength }
 
@@ -290,7 +287,7 @@ let blit ~src ~dst ~len =
 
 
 let zero_out bs =
-  Bytes.fill bs.a ~pos:0 ~len:(String.length bs.a) '\000'
+  BytesLabels.fill bs.a ~pos:0 ~len:(String.length bs.a) '\000'
 
 
 

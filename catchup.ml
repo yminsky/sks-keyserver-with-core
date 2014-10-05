@@ -21,9 +21,7 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
-open Printf
+open Core.Std
 open Common
 open DbMessages
 open PTreeDB
@@ -128,7 +126,7 @@ let rec catchup () =
     [ Eventloop.Event
         (now,
          Eventloop.make_tc ~name:"further catchup"
-           ~timeout:max_int ~cb:catchup
+           ~timeout:Int.max_value ~cb:catchup
         )
     ]
 

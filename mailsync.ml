@@ -21,16 +21,15 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
+open Core.Std
 open Common
-open StdLabels
-open MoreLabels
-open Printf
-
 
 let max_filesize = 200 * 1024
 let input_msg f =
-  let b = Buffer.create (min max_filesize (in_channel_length f)) in
-  Buffer.add_channel b f (in_channel_length f);
+  let b = Buffer.create (min max_filesize
+                           (Int64.to_int_exn (In_channel.length f)))
+  in
+  Buffer.add_channel b f (Int64.to_int_exn (In_channel.length f));
   Buffer.contents b
 
 
@@ -59,16 +58,16 @@ let load_message fname =
       msg.Sendmail.body *)
     text
   in
-  protect ~f:run ~finally:(fun () -> close_in file)
+  protect ~f:run ~finally:(fun () -> In_channel.close file)
 
 
 let get_mtime fname = (Unix.stat fname).Unix.st_mtime
 
 let demote fname =
-  if Sys.file_exists fname then
+  if Sys.file_exists_exn fname then
     let destdir = Lazy.force Settings.failed_msgdir in
-    if not (Sys.file_exists destdir) then
-      Unix.mkdir destdir 0o700;
+    if not (Sys.file_exists_exn destdir) then
+      Unix.mkdir destdir ~perm:0o700;
     Sys.rename fname (Filename.concat destdir (Filename.basename fname))
 
 (****************************************************************************)

@@ -20,6 +20,7 @@
 (* Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 *)
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
+open Core.Std
 
 class virtual out_channel_obj :
   object
@@ -56,7 +57,7 @@ class sys_out_channel :
   out_channel ->
   object
     method close : unit
-    method fd : Unix.file_descr
+    method fd : Unix.File_descr.t
     method flush : unit
     method outchan : out_channel
     method skip : int -> unit
@@ -76,7 +77,7 @@ class sys_in_channel :
   in_channel ->
   object
     method close : unit
-    method fd : Unix.file_descr
+    method fd : Unix.File_descr.t
     method inchan : in_channel
     method read_all : string
     method read_byte : int
@@ -131,20 +132,5 @@ class string_in_channel :
 (*******************************************************************)
 
 val new_buffer_outc : int -> buffer_out_channel
-val sys_out_from_fd : Unix.file_descr -> sys_out_channel
-val sys_in_from_fd : Unix.file_descr -> sys_in_channel
-
-(*
-class nonblocking_reader :
-  Unix.file_descr ->
-  object
-    method read : string_in_channel option
-  end
-
-class nonblocking_writer :
-  Unix.file_descr ->
-  object
-    method set_data : string -> unit
-    method write : bool
-  end
-*)
+val sys_out_from_fd : Unix.File_descr.t -> sys_out_channel
+val sys_in_from_fd : Unix.File_descr.t -> sys_in_channel

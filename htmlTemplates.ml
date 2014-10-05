@@ -20,11 +20,7 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open Printf
-open StdLabels
-open MoreLabels
-module Unix = UnixLabels
-open Unix
+open Core.Std
 
 open Packet
 
@@ -63,7 +59,7 @@ let link ~op ~hash ~fingerprint ~keyid =
 let keyinfo_header = "Type bits/keyID     Date       User ID"
 
 let keyinfo_pks pki revoked ~keyid ~link ~userids =
-  let tm = gmtime (Int64.to_float pki.pk_ctime) in
+  let tm = Unix.gmtime (Int64.to_float pki.pk_ctime) in
   let algo = pk_alg_to_ident pki.pk_alg in
   let base =
     sprintf "pub  %4d%s/<a href=\"%s\">%8s</a> %4d-%02d-%02d%s "

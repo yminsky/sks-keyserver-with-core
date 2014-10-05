@@ -20,12 +20,8 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
+open Core.Std
 open Common
-open StdLabels
-open MoreLabels
-open Printf
-(*open Pstyle *)
-module Set = PSet.Set
 open ReconPTreeDb
 
 (*

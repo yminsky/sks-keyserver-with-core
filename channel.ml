@@ -20,10 +20,7 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
-open Common
-module Unix=UnixLabels
+open Core.Std
 
 (******************************************************************)
 
@@ -37,8 +34,8 @@ let int_size = 4
 let int32_size = 4
 let int64_size = 8
 
-let byte64 = Int64.of_int 0xFF
-let byte32 = Int32.of_int 0xFF
+let byte64 = Int64.of_int_exn 0xFF
+let byte32 = Int32.of_int_exn 0xFF
 
 (** creates function for reading strings that is safe for use with
     non-blocking channels *)
@@ -88,7 +85,7 @@ let read_binary_int64_internal cin ~size =
   let intbuf = cin#read_string size in
   let value = ref Int64.zero in
   for i = 0 to size - 1 do
-    value := Int64.add (Int64.shift_left !value char_width)
+    value := Int64.(+) (Int64.shift_left !value char_width)
       (Int64.of_int (int_of_char intbuf.[i]))
   done;
   !value
@@ -97,8 +94,8 @@ let read_binary_int32_internal cin ~size =
   let intbuf = cin#read_string size in
   let value = ref Int32.zero in
   for i = 0 to size - 1 do
-    value := Int32.add (Int32.shift_left !value char_width)
-      (Int32.of_int (int_of_char intbuf.[i]))
+    value := Int32.(+) (Int32.shift_left !value char_width)
+      (Int32.of_int_exn (int_of_char intbuf.[i]))
   done;
   !value
 
@@ -148,12 +145,12 @@ object (self)
   method write_int32 x =
     for i = int32_size - 1 downto 0 do
       let shifted = (Int32.shift_right_logical x (i * 8) ) in
-      self#write_byte (Int32.to_int (Int32.logand byte32 shifted))
+      self#write_byte (Int32.to_int_exn (Int32.bit_and byte32 shifted))
     done
   method write_int64 x =
     for i = int64_size - 1 downto 0 do
       let shifted = (Int64.shift_right_logical x (i * 8) ) in
-      self#write_byte (Int64.to_int (Int64.logand byte64 shifted))
+      self#write_byte (Int64.to_int_exn (Int64.bit_and byte64 shifted))
     done
   method write_float x =
     let bits = Int64.bits_of_float x in
@@ -188,7 +185,7 @@ class sys_out_channel cout =
 object (self)
   inherit out_channel_obj
   method flush = flush cout
-  method close = close_out cout
+  method close = Out_channel.close cout
   method write_string str = output_string cout str
   method write_string_pos ~buf ~pos ~len= output cout buf pos len
   method write_char char = output_char cout char
@@ -197,7 +194,8 @@ object (self)
 
   method outchan = cout
   method fd = Unix.descr_of_out_channel cout
-  method skip n =
+  method skip (n:int) =
+    let n = Int64.of_int n in
     let skipped = Unix.lseek self#fd n ~mode:Unix.SEEK_CUR in
     if skipped <> n then raise End_of_file
 
@@ -212,7 +210,7 @@ class sys_in_channel cin =
 object (self)
   inherit in_channel_obj
 
-  method close = close_in cin
+  method close = In_channel.close cin
   method read_all = read_all cin ()
   method read_string len = input len
   method read_string_pos ~buf ~pos ~len =

@@ -77,7 +77,7 @@ ROBJS.bc= settings.cmo pstyle.cmo getfileopts.cmo  version_tuple.cmo\
 	bitstring.cmo meteredChannel.cmo \
 	number.cmo prime.cmo zZp.cmo rMisc.cmo \
 	linearAlg.cmo poly.cmo decode.cmo \
-	fqueue.cmo prefixTree.cmo msgContainer.cmo \
+	prefixTree.cmo msgContainer.cmo \
 	nbMsgContainer.cmo cMarshal.cmo reconMessages.cmo \
 	server.cmo client.cmo reconCS.cmo \
 	number_test.cmo decode_test.cmo poly_test.cmo \
