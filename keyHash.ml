@@ -23,11 +23,8 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
-
+open Core.Std
 open Packet
-open Printf
 
 let hash_bytes = 16
 
@@ -73,11 +70,11 @@ let hexchar_to_int c =
 
 let dehexify s =
   let s = String.uppercase s in
-  let ns = String.create (String.length s / 2) in (* new string *)
+  let ns = Bytes.create (Bytes.length s / 2) in (* new string *)
   for i = 0 to String.length ns - 1 do
     let first = hexchar_to_int s.[2 * i]
     and second = hexchar_to_int s.[2 * i + 1]
     in
-    ns.[i] <- char_of_int ((first lsl 4) + second)
+    Bytes.set ns i (char_of_int ((first lsl 4) + second))
   done;
-  ns
+  Bytes.to_string ns

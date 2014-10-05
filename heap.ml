@@ -20,8 +20,7 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
+open Core.Std
 
 (* Adapted from CLR *)
 

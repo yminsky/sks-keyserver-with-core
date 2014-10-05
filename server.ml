@@ -20,15 +20,10 @@
 (* USA or see <http://www.gnu.org/licenses/>.                          *)
 (***********************************************************************)
 
-open StdLabels
-open MoreLabels
-module Unix=UnixLabels
-open Printf
-
+open Core.Std
 open Common
 open ReconMessages
 
-module ZSet = ZZp.Set
 module PTree = PrefixTree
 (* module ZZp = RMisc.ZZp *)
 
@@ -82,7 +77,7 @@ let handle_one tree cin cout =
                        "for non-existant node (ReconRqst_Poly)"));
                 plerror 2 "%s" ("Server received ReconRqst_Poly " ^
                                          "for non-existant node");
-                (false,ZSet.empty)
+                (false,ZZp.Set.empty)
             | Some node ->
                 let local_samples = PTree.svalues node
                 and local_size = PTree.size node in
@@ -100,12 +95,12 @@ let handle_one tree cin cout =
                       then (
                         let elements = PTree.elements tree node in
                         marshal_noflush cout (FullElements elements);
-                        (true,ZSet.empty)
+                        (true,ZZp.Set.empty)
                         (* NOTE: server still doesn't know its share here.
                            Client will send that later *)
                       ) else (
                         marshal_noflush cout SyncFail;
-                        (true, ZSet.empty)
+                        (true, ZZp.Set.empty)
                       )
 
         ))
@@ -115,8 +110,8 @@ let handle_one tree cin cout =
           ( try
               let node = PTree.get_node_key tree rf.rf_prefix in
               let localset = PTree.elements tree node in
-              Some (ZSet.diff localset rf.rf_elements,
-                    ZSet.diff rf.rf_elements localset)
+              Some (Set.diff localset rf.rf_elements,
+                    Set.diff rf.rf_elements localset)
             with
                 Not_found -> None )
         with
@@ -128,17 +123,17 @@ let handle_one tree cin cout =
                                    "for non-existant node (ReconRqst_Full)"));
               plerror 2 "%s" ("Server recieved RconRqst_Full " ^
                               "for non-existant node");
-              (false,ZSet.empty)
+              (false,ZZp.Set.empty)
       )
 
     | Done ->
         plerror 5 "Done received";
-        (false,ZSet.empty)
+        (false,ZZp.Set.empty)
 
     | Flush ->
         plerror 5 "Flush occured";
         cout#flush;
-        (true,ZSet.empty)
+        (true,ZZp.Set.empty)
 
     | _ ->
         failwith ("Unexpected message: " ^
@@ -150,12 +145,12 @@ let handle_one tree cin cout =
 let recover_timeout = 10
 
 let handle tree cin cout =
-  let set_ref = ref ZSet.empty in
+  let set_ref = ref ZZp.Set.empty in
   let continue_ref = ref true in
   try
     while !continue_ref do
       let (continue, elements) = handle_one tree cin cout in
-      set_ref := ZSet.union !set_ref elements;
+      set_ref := Set.union !set_ref elements;
       continue_ref := continue;
     done;
     !set_ref
